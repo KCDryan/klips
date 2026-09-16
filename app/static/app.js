@@ -145,6 +145,11 @@ function setupUpload() {
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     if (!input.files[0]) return toast("Add your meeting recording in box 1 first.");
+    if (!LICENSE.activated) return toast("Add your licence key first — it's in your account at klips.pro.", 6000);
+    const needed = tokenCost($("#new-job").clips.value);
+    if (needed > LICENSE.tokens) {
+      return toast(`That needs ${needed} tokens and you have ${LICENSE.tokens}. Top up at klips.pro.`, 7000);
+    }
     const button = $("#submit-job");
     const status = $("#upload-status");
     button.disabled = true;
@@ -583,10 +588,75 @@ function setupBrand() {
   });
 }
 
+// ---------- licence and tokens ----------
+
+let LICENSE = { activated: false, tokens: 0, clips_available: 0, tokens_per_clip: 3, email: "" };
+
+function tokenCost(clips) {
+  return Math.max(0, Number(clips) || 0) * (LICENSE.tokens_per_clip || 3);
+}
+
+function renderLicense() {
+  const chip = $("#token-chip");
+  chip.hidden = !LICENSE.activated;
+  chip.textContent = `${LICENSE.tokens.toLocaleString()} tokens`;
+  chip.title = LICENSE.email ? `${LICENSE.email} · click to refresh` : "Click to refresh";
+  $("#license-warning").hidden = LICENSE.activated;
+  updateCostLine();
+}
+
+function updateCostLine() {
+  const line = $("#token-cost");
+  if (!line) return;
+  const clips = Number($("#new-job").clips.value) || 0;
+  const cost = tokenCost(clips);
+  if (!LICENSE.activated) {
+    line.textContent = "Activate your licence key to generate clips.";
+    line.classList.remove("short");
+    return;
+  }
+  const short = cost > LICENSE.tokens;
+  line.textContent = short
+    ? `${clips} clips need ${cost} tokens — you have ${LICENSE.tokens}. Top up at klips.pro.`
+    : `${clips} clips = ${cost} tokens · ${LICENSE.tokens.toLocaleString()} available`;
+  line.classList.toggle("short", short);
+}
+
+async function refreshLicense(remote = false) {
+  try {
+    LICENSE = await api(remote ? "/api/license/refresh" : "/api/license", remote ? { method: "POST" } : {});
+  } catch (e) {
+    if (remote) toast(e.message, 5000);
+  }
+  renderLicense();
+}
+
+function setupLicense() {
+  $("#license-warning").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = $("#license-input");
+    try {
+      LICENSE = await api("/api/license", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: input.value }),
+      });
+      input.value = "";
+      renderLicense();
+      toast(`Licence activated · ${LICENSE.tokens} tokens ready`);
+    } catch (err) {
+      toast(err.message, 6000);
+    }
+  });
+  $("#token-chip").addEventListener("click", () => refreshLicense(true));
+  $("#new-job").clips.addEventListener("input", updateCostLine);
+}
+
 // ---------- boot ----------
 
 (async function init() {
   META = await api("/api/meta");
+  LICENSE = META.klips || LICENSE;
   $("#key-warning").hidden = META.llm.backend !== "api" || META.llm.ready;
   $("#cc-warning").hidden = META.llm.backend !== "claude-code" || META.llm.ready;
   $("#cc-message").textContent = META.llm.message || "";
@@ -613,6 +683,8 @@ function setupBrand() {
   setupJobActions();
   setupEditor();
   setupBrand();
+  setupLicense();
+  renderLicense();
   window.addEventListener("hashchange", route);
   route();
 })();

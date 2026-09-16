@@ -10,7 +10,7 @@ from pathlib import Path
 
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
-from clipper import picker, pipeline, postcopy, store
+from clipper import klips_cloud, picker, pipeline, postcopy, store
 from clipper.captions import PRESETS
 from clipper.config import DATA_DIR, PLATFORMS, available_fonts
 
@@ -49,6 +49,50 @@ def set_api_key():
     return jsonify(ok=True)
 
 
+def _klips_status() -> dict:
+    """Licence and token balance, as last known from klips.pro."""
+    data = klips_cloud.load_license()
+    tokens = int(data.get("tokens", 0))
+    return {
+        "activated": bool(data.get("key")),
+        "email": data.get("email", ""),
+        "tokens": tokens,
+        "clips_available": tokens // klips_cloud.TOKENS_PER_CLIP,
+        "tokens_per_clip": klips_cloud.TOKENS_PER_CLIP,
+        "site": klips_cloud.API_BASE,
+    }
+
+
+@app.get("/api/license")
+def license_status():
+    return jsonify(_klips_status())
+
+
+@app.post("/api/license")
+def license_activate():
+    key = str((request.get_json(force=True) or {}).get("key", "")).strip()
+    try:
+        klips_cloud.activate(key)
+    except klips_cloud.KlipsError as e:
+        return jsonify(error=str(e)), 400
+    return jsonify(_klips_status())
+
+
+@app.post("/api/license/refresh")
+def license_refresh():
+    try:
+        klips_cloud.refresh()
+    except klips_cloud.KlipsError as e:
+        return jsonify(error=str(e)), 400
+    return jsonify(_klips_status())
+
+
+@app.delete("/api/license")
+def license_signout():
+    klips_cloud.clear_license()
+    return jsonify(_klips_status())
+
+
 def _job_or_404(job_id: str) -> dict:
     job = store.get_job(job_id)
     if not job:
@@ -76,6 +120,8 @@ def meta():
         defaults=pipeline.DEFAULT_OPTIONS,
         api_key_set=bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")),
         llm=picker.llm_status(),
+        klips=_klips_status(),
+        app_version=pipeline.APP_VERSION,
     )
 
 

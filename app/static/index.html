@@ -3,17 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AI Clipper</title>
+<title>Klips</title>
 <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
 <header class="top">
-  <a class="logo" href="#/">✂︎ AI Clipper</a>
+  <a class="logo" href="#/"><span class="logo-mark">K</span> Klips</a>
   <nav>
     <a href="#/">Projects</a>
     <button id="open-brand" class="ghost">Brand kit</button>
+    <button id="token-chip" class="chip" hidden></button>
   </nav>
 </header>
+
+<form id="license-warning" class="banner key-form" hidden>
+  <div>
+    <strong>Add your licence key to start making clips.</strong>
+    <span>It's on your receipt and in your account at <a href="https://klips.pro/account" target="_blank" rel="noopener">klips.pro</a>. No key yet? <a href="https://klips.pro" target="_blank" rel="noopener">Get tokens from $1</a>.</span>
+  </div>
+  <div class="key-row">
+    <input type="text" id="license-input" placeholder="KLIPS-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" required>
+    <button class="primary" type="submit">Activate</button>
+  </div>
+</form>
 
 <div id="cc-warning" class="banner" hidden>
   <strong>One more step.</strong> <span id="cc-message"></span>
@@ -76,6 +88,7 @@
       <div class="toggles" id="home-toggles"></div>
       <div class="form-foot">
         <button class="primary" id="submit-job">Generate clips</button>
+        <span id="token-cost" class="muted small"></span>
         <span id="upload-status" class="muted"></span>
       </div>
     </form>

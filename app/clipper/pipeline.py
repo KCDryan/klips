@@ -15,10 +15,11 @@ from typing import Callable, List, Optional
 import numpy as np
 
 from . import edit as edit_mod
-from . import media, picker, reframe, render, speaker, store
+from . import klips_cloud, media, picker, reframe, render, speaker, store
 from .config import DATA_DIR
 from .transcribe import transcribe
 
+APP_VERSION = "1.0.0"
 ECHO = False  # the CLI turns this on to print progress
 ANALYSIS_PAD = 3.0  # seconds of extra analysis around each clip so small in/out edits reuse the cache
 # Clips rendered at the same time. Each render uses about 2-3 cores (decode, compositing, encode).
@@ -227,6 +228,48 @@ def render_with_status(job_id: str, idx: int, on_progress: Callable[[float], Non
         _log(job_id, f"Clip {idx + 1} failed: {e}")
 
 
+# ---------- tokens ----------
+
+def _reserve_tokens(job_id: str, options: dict, clips: int) -> None:
+    """Take tokens for this run (3 per clip). Resuming a job that already paid doesn't charge again."""
+    job = store.get_job(job_id, with_clips=False)
+    if job["options"].get("generation_id"):
+        return
+    duration = 0.0
+    try:
+        duration = media.probe(source_path(job_id)).get("duration", 0.0)
+    except Exception:
+        pass
+    result = klips_cloud.reserve(
+        clips=clips,
+        source_name=job["filename"],
+        source_seconds=duration,
+        platform_id=options.get("platform", ""),
+        app_version=APP_VERSION,
+    )
+    store.update_job(job_id, options={**job["options"], "generation_id": result["generation_id"]})
+    _log(job_id, f"{result['tokens_charged']} tokens used · {result['tokens']} left on your account")
+
+
+def _settle_tokens(job_id: str, error: Optional[str] = None) -> None:
+    """Tell Klips what was delivered. Clips that never finished are refunded."""
+    job = store.get_job(job_id, with_clips=False)
+    generation_id = job["options"].get("generation_id")
+    if not generation_id or job["options"].get("generation_settled"):
+        return
+    try:
+        if error:
+            klips_cloud.failed(generation_id, error)
+        else:
+            done = [c for c in store.list_clips(job_id) if c["status"] == "done"]
+            result = klips_cloud.complete(generation_id, len(done), [c.get("title", "") for c in done])
+            if result.get("refunded"):
+                _log(job_id, f"{result['refunded']} tokens refunded for clips that didn't finish")
+        store.update_job(job_id, options={**job["options"], "generation_settled": True})
+    except klips_cloud.KlipsError as e:
+        _log(job_id, f"Couldn't update your Klips balance: {e}")
+
+
 # ---------- full job ----------
 
 def run_job(job_id: str) -> None:
@@ -261,6 +304,9 @@ def run_job(job_id: str) -> None:
         if not clips:
             raise RuntimeError("Claude didn't find any strong clip-worthy moments. Try a wider clip length or no topic filter.")
 
+        stage("Checking your tokens", 0.52)
+        _reserve_tokens(job_id, options, len(clips))
+
         existing = {c["idx"]: c for c in store.list_clips(job_id)}
         for idx, c in enumerate(clips):
             if idx not in existing:
@@ -285,10 +331,12 @@ def run_job(job_id: str) -> None:
 
         with ThreadPoolExecutor(max_workers=RENDER_WORKERS) as pool:  # render several clips at once
             list(pool.map(render, todo))
+        _settle_tokens(job_id)
         store.update_job(job_id, status="done", stage="Done", progress=1.0)
         _log(job_id, f"Done: {total} clips ready")
     except Exception as e:
         traceback.print_exc()
+        _settle_tokens(job_id, error=str(e))
         store.update_job(job_id, status="error", stage="Failed", error=str(e))
         _log(job_id, f"Error: {e}")
 
