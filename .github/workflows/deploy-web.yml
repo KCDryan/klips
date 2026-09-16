@@ -1,6 +1,7 @@
 name: Deploy klips.pro
 
 # Every push to main that touches the website: check it, then ship it to Cloudflare.
+# Until Cloudflare is set up (SETUP.md steps 2-5) the checks still run and the deploy is skipped.
 on:
   push:
     branches: [main]
@@ -16,9 +17,9 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -35,7 +36,25 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check Cloudflare setup
+        id: setup
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CF_TOKEN" ] || [ -z "$CF_ACCOUNT" ]; then
+            echo "::notice title=Deploy skipped::Cloudflare isn't connected yet. Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID under Settings > Secrets and variables > Actions (SETUP.md step 5)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -q "PASTE_DATABASE_ID_AFTER_CREATING" wrangler.jsonc; then
+            echo "::error title=Database not configured::Run 'npx wrangler d1 create klips' and paste the database_id into web/wrangler.jsonc (SETUP.md step 2)."
+            exit 1
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to Cloudflare
+        if: steps.setup.outputs.ready == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
