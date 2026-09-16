@@ -1,6 +1,15 @@
-# AI Clipper
+# Klips
 
-Turn long videos (podcasts, interviews, webinars, Zoom calls) into ready-to-post vertical shorts, similar to CapCut's "Long video to shorts" or Opus Clip.
+Turn long videos (podcasts, interviews, webinars, Zoom calls) into ready-to-post vertical shorts.
+Klips runs on your own computer and uses your own Claude Code subscription, so your footage never
+leaves your machine.
+
+## Licence and tokens
+
+- Buy tokens at [klips.pro](https://klips.pro), from $1 for 10 tokens.
+- Paste your licence key into the app the first time you open it.
+- Each finished clip costs **3 tokens**, so 10 clips from one video is 30 tokens.
+- Clips that fail are refunded automatically, and every run shows up in your account at klips.pro.
 
 ## What it does
 
