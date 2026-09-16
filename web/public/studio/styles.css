@@ -178,3 +178,4 @@ a.chip { text-decoration: none; }
 .engine-note { margin: 14px 2px 0; }
 a.button.primary { background: var(--accent); color: #000; border-color: var(--accent); }
 .banner a { color: #ffe38a; margin-left: 6px; }
+.engine-note.blocked { color: var(--danger); }

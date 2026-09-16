@@ -2,7 +2,7 @@
 # Klips auto-sync: keeps GitHub, klips.pro and the app downloads in step with this Mac.
 #
 #   1. A new installer release on GitHub? -> copy it to klips.pro's download storage.
-#   2. Nothing changed locally?            -> stop here.
+#   2. Nothing changed locally, or files changed in the last 15 minutes (still being edited)? -> stop here.
 #   3. Run the website and app tests; if anything fails, stop (nothing is pushed or deployed).
 #   4. Commit and push to GitHub.
 #   5. Website changed?                    -> build and deploy klips.pro.
@@ -58,6 +58,17 @@ CHANGES=$(git status --porcelain)
 UNPUSHED=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo 0)
 if [ -z "$CHANGES" ] && [ "$UNPUSHED" = "0" ]; then
   exit 0
+fi
+
+# Someone (or Claude) is still editing: wait until nothing has changed for 15 minutes,
+# so half-finished work is never pushed or deployed.
+if [ -n "$CHANGES" ]; then
+  RECENT=$(find app web scripts .github -type f -mmin -15 \
+    -not -path "*/node_modules/*" -not -path "*/dist/*" -not -path "*/.wrangler/*" \
+    -not -path "*/__pycache__/*" -not -name "*.tsbuildinfo" 2>/dev/null | head -1)
+  if [ -n "$RECENT" ]; then
+    exit 0
+  fi
 fi
 
 log "changes found (uncommitted: $([ -n "$CHANGES" ] && echo yes || echo no), unpushed commits: $UNPUSHED)"

@@ -21,7 +21,7 @@ if not exist ".venv\Scripts\python.exe" (
   )
 )
 
-start "" cmd /c "timeout /t 5 >nul & start http://localhost:5055"
-echo AI Clipper is starting at http://localhost:5055 - close this window to stop it.
+start "" cmd /c "timeout /t 5 >nul & start https://klips.pro/studio/"
+echo Klips Engine is starting. Klips Studio opens at https://klips.pro/studio/ - close this window to stop the engine.
 ".venv\Scripts\python.exe" app.py
 pause

@@ -325,7 +325,9 @@ def edit_clip(job_id, idx):
 
 @app.get("/media/<job_id>/<path:name>")
 def media(job_id, name):
-    return send_from_directory(pipeline.clips_dir(job_id), name, conditional=True)
+    # ?download=1 saves the file: the studio lives on klips.pro, where a plain download link to the engine would only play it.
+    return send_from_directory(pipeline.clips_dir(job_id), name, conditional=True,
+                               as_attachment=request.args.get("download") == "1")
 
 
 @app.get("/api/jobs/<job_id>/export.zip")

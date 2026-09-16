@@ -10,7 +10,9 @@ import {
   findEngine,
   installClaude,
   linkEngine,
+  localAccessBlocked,
   openClaudeSignIn,
+  UNBLOCK_HELP,
 } from "../lib/engine";
 import { TokenSlider } from "./Pricing";
 import { Link } from "./SiteHeader";
@@ -37,7 +39,7 @@ function Spinner() {
 }
 
 /** Installing and opening Klips Engine, with instructions for the computer they're on. */
-function EngineStep({ engine, linking, linkError }: { engine: Engine | null; linking: boolean; linkError: string }) {
+function EngineStep({ engine, linking, linkError, blocked }: { engine: Engine | null; linking: boolean; linkError: string; blocked: boolean }) {
   const os = computerOs();
   const primary = os === "windows" ? "windows" : "mac";
   return (
@@ -86,6 +88,7 @@ function EngineStep({ engine, linking, linkError }: { engine: Engine | null; lin
           If your browser asks to let klips.pro connect to apps or devices on this computer, choose{" "}
           <b className="text-ink-100">Allow</b>. That's how the website talks to the engine.
         </p>
+        {blocked ? <p className="mt-2 text-red-400">{UNBLOCK_HELP}</p> : null}
         {linkError ? <p className="mt-2 text-red-400">{linkError}</p> : null}
       </div>
     </div>
@@ -222,6 +225,7 @@ export function Checklist({ compact = false }: { compact?: boolean }) {
   const [claude, setClaude] = useState<ClaudeStatus | null>(null);
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState("");
+  const [blocked, setBlocked] = useState(false);
   const [open, setOpen] = useState<StepId | null>(null);
   const linkingRef = useRef(false);
 
@@ -241,8 +245,10 @@ export function Checklist({ compact = false }: { compact?: boolean }) {
     if (!found) {
       setEngine(null);
       setClaude(null);
+      setBlocked(await localAccessBlocked());
       return;
     }
+    setBlocked(false);
     if (!(found.info.linked && found.info.account === onboarding.email) && !linkingRef.current) {
       linkingRef.current = true;
       setLinking(true);
@@ -412,7 +418,7 @@ export function Checklist({ compact = false }: { compact?: boolean }) {
                       </p>
                     </div>
                   ) : null}
-                  {step.id === "engine" ? <EngineStep engine={engine} linking={linking} linkError={linkError} /> : null}
+                  {step.id === "engine" ? <EngineStep engine={engine} linking={linking} linkError={linkError} blocked={blocked} /> : null}
                   {step.id === "claude" ? <ClaudeStep engine={engine} status={claude} onChange={() => void loadEngine()} /> : null}
                   {step.id === "clips" ? (
                     <div className="space-y-4">

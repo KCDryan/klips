@@ -347,7 +347,7 @@ const editor = {
     if (clip.file) {
       const url = eng(`/media/${job.id}/${encodeURIComponent(clip.file)}?v=${clip.version}`);
       video.src = url;
-      $("#ed-download").href = url;
+      $("#ed-download").href = `${url}&download=1`;
       $("#ed-download").setAttribute("download", clip.file);
       $("#ed-download").hidden = false;
     } else {
@@ -692,26 +692,36 @@ function setupLicense() {
 async function probeEngine() {
   const override = new URLSearchParams(location.search).get("engine");
   const bases = override ? [override.replace(/\/$/, "")] : ENGINE_PORTS.map((port) => `http://127.0.0.1:${port}`);
-  const attempts = bases.map(async (base) => {
+  // One port at a time: the engine almost always has the first, and a closed port fails instantly.
+  for (const base of bases) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2500);
     try {
       const res = await fetch(`${base}/api/engine`, { signal: controller.signal });
       const info = await res.json();
-      if (info.app !== "klips-engine") throw new Error("not Klips");
-      return { base, info };
+      if (info.app === "klips-engine") return { base, info };
+    } catch {
+      /* not on this port */
     } finally {
       clearTimeout(timer);
     }
-  });
-  try {
-    return await Promise.any(attempts);
-  } catch {
-    return null;
   }
+  return null;
 }
 
-function showEngineMissing(stopped) {
+async function localAccessBlocked() {
+  for (const name of ["local-network-access", "loopback-network"]) {
+    try {
+      const status = await navigator.permissions.query({ name });
+      return status.state === "denied";
+    } catch {
+      /* this browser doesn't know that permission name */
+    }
+  }
+  return false;
+}
+
+async function showEngineMissing(stopped) {
   $("#boot").hidden = true;
   $("#studio").hidden = true;
   $("#engine-missing").hidden = false;
@@ -734,8 +744,12 @@ function showEngineMissing(stopped) {
   primary.textContent = windows ? "Download for Windows" : "Download for Mac";
   secondary.href = windows ? "/download/mac" : "/download/windows";
   secondary.textContent = windows ? "Download for Mac" : "Download for Windows";
-  if (/Safari/i.test(ua) && !/Chrome|Chromium|Edg/i.test(ua)) {
-    $("#engine-browser-note").textContent = "Safari may block the connection to Klips Engine. If this page doesn't connect after you open Klips, use Chrome or Edge.";
+  const note = $("#engine-browser-note");
+  if (await localAccessBlocked()) {
+    note.textContent = "Your browser is blocking klips.pro from connecting to Klips Engine. Click the icon to the left of the web address, open Site settings, set Local network access to Allow, then reload this page.";
+    note.classList.add("blocked");
+  } else if (/Safari/i.test(ua) && !/Chrome|Chromium|Edg/i.test(ua)) {
+    note.textContent = "Safari may block the connection to Klips Engine. If this page doesn't connect after you open Klips, use Chrome or Edge.";
   }
 }
 

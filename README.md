@@ -1,24 +1,27 @@
 # Klips
 
-Turn long videos into ready-to-post vertical clips. The desktop app does all the video work on the
-customer's own computer using their own Claude Code subscription; the website sells tokens, holds the
-licence keys and keeps each customer's history.
+Turn long videos into ready-to-post vertical clips. Customers use Klips Studio in their browser at
+klips.pro/studio; Klips Engine, a background service on their own computer, does all the video work with
+their own Claude Code subscription. The website sells tokens, runs accounts and keeps each customer's history.
 
 ```
 klips/
-  web/    klips.pro — marketing site, checkout, account portal, and the API (Cloudflare Workers + D1 + Stripe)
-  app/    the desktop app customers download (Python: Whisper, MediaPipe, OpenCV, ffmpeg)
+  web/    klips.pro: marketing site, checkout, accounts, setup checklist, Klips Studio (web/public/studio)
+          and the API (Cloudflare Workers + D1 + R2 + Stripe)
+  app/    Klips Engine, installed once on the customer's computer (Python: Whisper, MediaPipe, OpenCV, ffmpeg)
 ```
 
 ## How the pieces fit
 
-1. A customer buys tokens or a plan on klips.pro (Stripe Checkout).
-2. The Worker creates their account and a licence key, shown on the welcome page.
-3. They install the desktop app and paste the licence key.
-4. Before each run the app reserves tokens (3 per clip). Clips that fail are refunded automatically.
-5. The app reports the finished clip titles, so the account page shows their history.
+1. A customer creates an account (email and password) and buys tokens or a plan (Stripe Checkout).
+2. The setup checklist at /start walks them through installing Klips Engine and connecting Claude Code;
+   each step ticks itself off.
+3. They open klips.pro/studio. The page finds the engine on 127.0.0.1:47813 and links it to their account.
+4. Before each run the engine reserves tokens (3 per clip). Clips that fail are refunded automatically.
+5. The engine reports the finished clip titles, so the account page shows their history.
 
-Video never leaves the customer's machine. Only clip counts and titles are sent to klips.pro.
+Video goes from the browser to the engine on the same computer and never reaches klips.pro. The engine only
+answers requests from klips.pro pages (Origin check) addressed to 127.0.0.1 or localhost (Host check).
 
 ## Website (web/)
 

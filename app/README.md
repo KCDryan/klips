@@ -1,13 +1,14 @@
 # Klips
 
 Turn long videos (podcasts, interviews, webinars, Zoom calls) into ready-to-post vertical shorts.
-Klips runs on your own computer and uses your own Claude Code subscription, so your footage never
-leaves your machine.
+This folder is **Klips Engine**: it runs in the background on your own computer and uses your own Claude
+Code subscription, while you work in Klips Studio at [klips.pro/studio](https://klips.pro/studio/).
+Your footage never leaves your machine.
 
-## Licence and tokens
+## Account and tokens
 
-- Buy tokens at [klips.pro](https://klips.pro), from $1 for 10 tokens.
-- Paste your licence key into the app the first time you open it.
+- Create an account and buy tokens at [klips.pro](https://klips.pro), from $1 for 10 tokens.
+- Open klips.pro/studio while the engine runs; it connects the engine to your account automatically.
 - Each finished clip costs **3 tokens**, so 10 clips from one video is 30 tokens.
 - Clips that fail are refunded automatically, and every run shows up in your account at klips.pro.
 
@@ -67,7 +68,7 @@ Then open the `ai-clipper` folder:
 - **Windows:** double-click `start.bat`.
 - **Mac:** double-click `start.command`. If macOS blocks it, right-click it and choose **Open**.
 
-The first run installs everything into a `.venv` folder, which takes a few minutes. After that it starts straight away and opens http://localhost:5055. Close the window to stop the app.
+The first run installs everything into a `.venv` folder, which takes a few minutes. After that the engine starts straight away and opens https://klips.pro/studio/. Close the window to stop the engine.
 
 No ffmpeg or Homebrew install is needed: ffmpeg comes bundled with the `imageio-ffmpeg` package. On first use, Whisper downloads its speech model (~500 MB for the default).
 

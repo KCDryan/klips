@@ -23,6 +23,6 @@ if [ ! -x .venv/bin/python ]; then
   fi
 fi
 
-( sleep 4; open http://localhost:5055 2>/dev/null || xdg-open http://localhost:5055 2>/dev/null ) &
-echo "AI Clipper is starting at http://localhost:5055 (close this window to stop it)"
+( sleep 4; open https://klips.pro/studio/ 2>/dev/null || xdg-open https://klips.pro/studio/ 2>/dev/null ) &
+echo "Klips Engine is starting. Klips Studio opens at https://klips.pro/studio/ (close this window to stop the engine)"
 .venv/bin/python app.py

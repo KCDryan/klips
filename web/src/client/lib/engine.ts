@@ -4,6 +4,10 @@
  */
 import { api } from "./api";
 
+/** How to undo "Block" on the browser's local network prompt. */
+export const UNBLOCK_HELP =
+  "Your browser is blocking klips.pro from connecting to Klips Engine. Click the icon to the left of the web address, open Site settings, set Local network access to Allow, then reload this page.";
+
 export const ENGINE_PORTS = [47813, 47814, 47815, 47816, 47817];
 
 export interface EngineInfo {
@@ -50,17 +54,16 @@ async function engineFetch<T>(base: string, path: string, init: RequestInit = {}
 export async function findEngine(): Promise<Engine | null> {
   const override = new URLSearchParams(window.location.search).get("engine");
   const bases = override ? [override.replace(/\/$/, "")] : ENGINE_PORTS.map((port) => `http://127.0.0.1:${port}`);
-  try {
-    return await Promise.any(
-      bases.map(async (base) => {
-        const info = await engineFetch<EngineInfo>(base, "/api/engine", {}, 2500);
-        if (info.app !== "klips-engine") throw new Error("not Klips");
-        return { base, info };
-      }),
-    );
-  } catch {
-    return null;
+  // One port at a time: the engine almost always has the first, and a closed port fails instantly.
+  for (const base of bases) {
+    try {
+      const info = await engineFetch<EngineInfo>(base, "/api/engine", {}, 2500);
+      if (info.app === "klips-engine") return { base, info };
+    } catch {
+      /* not on this port */
+    }
   }
+  return null;
 }
 
 /** Connect the engine to the account signed in on klips.pro (no password needed on the engine). */
@@ -75,6 +78,19 @@ export const installClaude = (engine: Engine) =>
   engineFetch<ClaudeStatus>(engine.base, "/api/claude/install", { method: "POST" }, 30000);
 export const openClaudeSignIn = (engine: Engine) =>
   engineFetch<{ ok: true }>(engine.base, "/api/claude/sign-in", { method: "POST" }, 40000);
+
+/** True when the browser has been told not to let klips.pro reach apps on this computer. */
+export async function localAccessBlocked(): Promise<boolean> {
+  for (const name of ["local-network-access", "loopback-network"]) {
+    try {
+      const status = await navigator.permissions.query({ name: name as PermissionName });
+      return status.state === "denied";
+    } catch {
+      /* this browser doesn't know that permission name */
+    }
+  }
+  return false;
+}
 
 export function computerOs(): "mac" | "windows" | "other" {
   const ua = navigator.userAgent;

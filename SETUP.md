@@ -74,35 +74,25 @@ After that, every push to `main` that touches `web/` deploys itself.
 With Stripe still in test mode, buy tokens on your own site using card `4242 4242 4242 4242`,
 any future expiry, any CVC. Check that:
 
-- the welcome page shows a licence key,
-- the key signs you in at `/account` and shows the tokens,
-- pasting the key into the desktop app activates it,
-- a run deducts 3 tokens per clip and shows up under "Your clips".
+- the welcome page shows the tokens and the setup checklist,
+- installing and opening Klips Engine ticks off its step, and so does connecting Claude Code,
+- klips.pro/studio connects to the engine, a run deducts 3 tokens per clip,
+- and the clips show up under "Your clips" on the account page.
 
 ## 7. Go live
 
 1. Stripe → toggle off test mode → copy the **live** secret key and a new webhook signing secret.
 2. Re-run both `wrangler secret put` commands with the live values.
-3. Publish the desktop installers (see below) and point the download links at them:
-   `DOWNLOAD_MAC_URL` and `DOWNLOAD_WINDOWS_URL` in `web/wrangler.jsonc`.
+3. Keep the Klips Engine installers current: see below.
 
 ---
 
-## Publishing the desktop app
+## Publishing Klips Engine
 
-`.github/workflows/build-app.yml` builds a Mac `.dmg` and a Windows `.exe` when you push a tag:
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-The build attaches both files to a GitHub release. **This workflow hasn't been run yet** — packaging
-Python apps with MediaPipe and OpenCV usually needs a round or two of fixing. Run it, read the log,
-and I'll fix whatever it reports.
-
-Until then, customers can run the app from source with `start.command` (Mac) or `start.bat` (Windows),
-which is what `app/README.md` describes.
+Raise `APP_VERSION` in `app/clipper/pipeline.py`. `scripts/sync.sh` (run every 10 minutes by
+`~/Library/LaunchAgents/pro.klips.sync.plist`) then tags the version, GitHub builds and self-tests the Mac
+`.dmg` and Windows `.exe`, and the next sync uploads them to Cloudflare R2, where the Download buttons and
+the studio's "update available" notice read them.
 
 ---
 
