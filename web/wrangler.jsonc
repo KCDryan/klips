@@ -6,6 +6,14 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
 
+  // klips.pro and www.klips.pro serve this Worker. Cloudflare creates the DNS records and certificates.
+  "routes": [
+    { "pattern": "klips.pro", "custom_domain": true },
+    { "pattern": "www.klips.pro", "custom_domain": true }
+  ],
+  // Keep the workers.dev address too: the Stripe webhook may point at it.
+  "workers_dev": true,
+
   // The React site is served from the same Worker; /api/* runs the Worker code first.
   "assets": {
     "directory": "./dist/client",
@@ -23,8 +31,8 @@
   ],
 
   "vars": {
-    // Where Stripe sends customers back after checkout. Switch to https://klips.pro once the domain is connected.
-    "SITE_URL": "https://klips.kcd-ryanc.workers.dev",
+    // Where Stripe sends customers back after checkout.
+    "SITE_URL": "https://klips.pro",
     // Point these at the installers once the first release is published on GitHub.
     "DOWNLOAD_MAC_URL": "https://github.com/YOUR_GITHUB_USERNAME/klips/releases/latest/download/Klips-mac.dmg",
     "DOWNLOAD_WINDOWS_URL": "https://github.com/YOUR_GITHUB_USERNAME/klips/releases/latest/download/Klips-windows.exe"
