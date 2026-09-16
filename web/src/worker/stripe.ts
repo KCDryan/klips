@@ -14,6 +14,9 @@ import {
 import { type Env, creditTokens, ensureUser, getUserByStripeCustomer, id, now } from "./db";
 
 export function stripeClient(env: Env): Stripe {
+  if (!env.STRIPE_SECRET_KEY) {
+    throw new Error("Payments aren't switched on yet. Please try again soon.");
+  }
   return new Stripe(env.STRIPE_SECRET_KEY, {
     apiVersion: "2025-08-27.basil",
     httpClient: Stripe.createFetchHttpClient(),

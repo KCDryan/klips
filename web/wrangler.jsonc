@@ -23,7 +23,8 @@
   ],
 
   "vars": {
-    "SITE_URL": "https://klips.pro",
+    // Where Stripe sends customers back after checkout. Switch to https://klips.pro once the domain is connected.
+    "SITE_URL": "https://klips.kcd-ryanc.workers.dev",
     // Point these at the installers once the first release is published on GitHub.
     "DOWNLOAD_MAC_URL": "https://github.com/YOUR_GITHUB_USERNAME/klips/releases/latest/download/Klips-mac.dmg",
     "DOWNLOAD_WINDOWS_URL": "https://github.com/YOUR_GITHUB_USERNAME/klips/releases/latest/download/Klips-windows.exe"
