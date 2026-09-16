@@ -13,6 +13,14 @@ import {
 } from "../shared/pricing";
 import { type Env, creditTokens, ensureUser, getUserByStripeCustomer, id, now } from "./db";
 
+/**
+ * Stripe product tax code, required by Managed Payments (Stripe handles sales tax and VAT).
+ * Klips is a downloaded app that works with an online service, sold to creators and businesses:
+ * "Artificial Intelligence as a Service (AIaaS) - Cloud Based & Downloaded - Business Use".
+ * https://docs.stripe.com/payments/managed-payments/eligibility
+ */
+const TAX_CODE = "txcd_10105004";
+
 export function stripeClient(env: Env): Stripe {
   if (!env.STRIPE_SECRET_KEY) {
     throw new Error("Payments aren't switched on yet. Please try again soon.");
@@ -40,6 +48,7 @@ export async function createPackCheckout(env: Env, tokens: number, email?: strin
           currency: "usd",
           unit_amount: packCents(amount),
           product_data: {
+            tax_code: TAX_CODE,
             name: `${amount} Klips tokens`,
             description: `${amount / 3 | 0} clips. Tokens never expire.`,
           },
@@ -70,6 +79,7 @@ export async function createSubscriptionCheckout(env: Env, plan: Plan, interval:
           unit_amount: planCents(plan, interval),
           recurring: { interval },
           product_data: {
+            tax_code: TAX_CODE,
             name: `Klips ${plan.name} (${interval === "year" ? "yearly" : "monthly"})`,
             description:
               interval === "year"
