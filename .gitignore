@@ -14,3 +14,6 @@ data/
 *.zip
 
 .DS_Store
+
+# private installer upload key
+.admin-token

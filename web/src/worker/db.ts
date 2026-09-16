@@ -6,6 +6,8 @@ export interface Env {
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
   DOWNLOADS: R2Bucket;
+  /** Private key for uploading installers (scripts/upload_installer.py). Not for customers. */
+  ADMIN_TOKEN: string;
 }
 
 export interface User {

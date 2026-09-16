@@ -80,6 +80,39 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   const path = url.pathname;
   const method = request.method;
 
+  // Installer uploads, in parts (a single request is capped at 100 MB). Only for the owner's upload script.
+  if (path.startsWith("/api/admin/upload/")) {
+    const given = request.headers.get("x-klips-admin") || "";
+    if (!env.ADMIN_TOKEN || given.length !== env.ADMIN_TOKEN.length || given !== env.ADMIN_TOKEN) {
+      return fail("Not allowed.", 403);
+    }
+    const key = url.searchParams.get("key") || "";
+    if (!["Klips-mac.dmg", "Klips-windows-setup.exe"].includes(key)) return fail("Unknown installer name.");
+
+    if (path === "/api/admin/upload/start" && method === "POST") {
+      const upload = await env.DOWNLOADS.createMultipartUpload(key, {
+        httpMetadata: { contentType: key.endsWith(".dmg") ? "application/x-apple-diskimage" : "application/vnd.microsoft.portable-executable" },
+      });
+      return json({ upload_id: upload.uploadId });
+    }
+    const uploadId = url.searchParams.get("upload_id") || "";
+    if (path === "/api/admin/upload/part" && method === "PUT") {
+      const partNumber = Number(url.searchParams.get("part"));
+      if (!request.body || !Number.isInteger(partNumber) || partNumber < 1) return fail("Missing part.");
+      const part = await env.DOWNLOADS.resumeMultipartUpload(key, uploadId).uploadPart(partNumber, request.body);
+      return json({ part_number: part.partNumber, etag: part.etag });
+    }
+    if (path === "/api/admin/upload/complete" && method === "POST") {
+      const body = await readJson(request);
+      const parts = Array.isArray(body.parts) ? body.parts : [];
+      const object = await env.DOWNLOADS.resumeMultipartUpload(key, uploadId).complete(
+        parts.map((p: any) => ({ partNumber: Number(p.part_number), etag: String(p.etag) })),
+      );
+      return json({ key: object.key, size: object.size });
+    }
+    return fail("Not found.", 404);
+  }
+
   // Installers live in R2 (the GitHub repo is private). scripts/sync.sh uploads each new release.
   if (path === "/download/mac" || path === "/download/windows") {
     const key = path.endsWith("/windows") ? "Klips-windows-setup.exe" : "Klips-mac.dmg";

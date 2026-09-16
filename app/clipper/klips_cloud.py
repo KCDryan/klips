@@ -20,6 +20,7 @@ from .config import DATA_DIR
 API_BASE = os.environ.get("KLIPS_API", "https://klips.pro").rstrip("/")
 TOKENS_PER_CLIP = 3
 TIMEOUT = 20
+USER_AGENT = f"Klips/{os.environ.get('KLIPS_VERSION', '1.0.0')} (desktop app; +https://klips.pro)"
 
 
 class KlipsError(RuntimeError):
@@ -73,7 +74,12 @@ def _post(path: str, payload: dict) -> dict:
     request = urllib.request.Request(
         f"{API_BASE}{path}",
         data=body,
-        headers={"content-type": "application/json", "x-klips-key": payload.get("license_key", "")},
+        headers={
+            "content-type": "application/json",
+            "x-klips-key": payload.get("license_key", ""),
+            # Cloudflare blocks Python's default "Python-urllib" user agent (error 1010).
+            "user-agent": USER_AGENT,
+        },
         method="POST",
     )
     try:
