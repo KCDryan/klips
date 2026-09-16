@@ -75,6 +75,12 @@ export async function getUserByStripeCustomer(env: Env, customerId: string): Pro
 /** Remember the Stripe customer for an account, so later purchases and the billing portal use the same one. */
 export async function linkStripeCustomer(env: Env, user: User, customerId: string | null): Promise<User> {
   if (!customerId || user.stripe_customer_id === customerId) return user;
+  const taken = await env.DB.prepare("SELECT id FROM users WHERE stripe_customer_id = ? AND id != ?").bind(customerId, user.id).first();
+  if (taken) {
+    // Never let a customer id clash block a purchase from being credited.
+    console.warn("stripe customer already linked to another account", customerId);
+    return user;
+  }
   await env.DB.prepare("UPDATE users SET stripe_customer_id = ?, updated_at = ? WHERE id = ?").bind(customerId, now(), user.id).run();
   return (await getUserById(env, user.id))!;
 }
