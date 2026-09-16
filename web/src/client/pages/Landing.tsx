@@ -227,7 +227,7 @@ export function Landing() {
             <Link to="/privacy" className="hover:text-ink-100">
               Privacy
             </Link>
-            <a href="mailto:support@klips.pro" className="hover:text-ink-100">Support</a>
+            <a href="mailto:kcd.ryanc@gmail.com" className="hover:text-ink-100">Support</a>
           </div>
         </div>
       </footer>

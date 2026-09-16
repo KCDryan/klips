@@ -6,6 +6,8 @@
  */
 import { type Env, type User, getUserById, now, sha256 } from "./db";
 
+/** Where customer emails and replies go. */
+export const SUPPORT_EMAIL = "kcd.ryanc@gmail.com";
 export const SESSION_COOKIE = "klips_session";
 export const SESSION_SECONDS = 30 * 24 * 60 * 60;
 export const RESET_SECONDS = 60 * 60;
@@ -168,7 +170,8 @@ export async function sendEmail(env: Env, to: string, subject: string, text: str
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify({ from: env.EMAIL_FROM || "Klips <accounts@klips.pro>", to: [to], subject, text }),
+    // Sent from the klips.pro domain (no inbox needed); replies go to the Klips support inbox.
+    body: JSON.stringify({ from: env.EMAIL_FROM || "Klips <accounts@klips.pro>", reply_to: SUPPORT_EMAIL, to: [to], subject, text }),
   });
   if (!response.ok) {
     console.error("email send failed", response.status, await response.text());

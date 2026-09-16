@@ -735,6 +735,8 @@ function setupClaude(initial) {
       await api("/api/claude/sign-in", { method: "POST" });
       $("#cc-login-hint").textContent = "Finish signing in in the window that opened. This updates by itself.";
     } catch (err) {
+      const shell = CLAUDE && CLAUDE.platform === "windows" ? "PowerShell" : "Terminal";
+      $("#cc-login-hint").textContent = `Couldn't open the sign-in window. Open ${shell} yourself and run: claude auth login`;
       toast(err.message, 7000);
     }
   });

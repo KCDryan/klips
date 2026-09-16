@@ -30,7 +30,7 @@ export function Terms() {
     <Page title="Terms of service">
       <p>
         Klips is software you run on your own computer, sold by Kirby Chan Digital. Buying tokens or a plan means you
-        agree to these terms. If anything here doesn't work for you, email support@klips.pro before you buy.
+        agree to these terms. If anything here doesn't work for you, email kcd.ryanc@gmail.com before you buy.
       </p>
 
       <h2>What you're buying</h2>
@@ -56,7 +56,7 @@ export function Terms() {
 
       <h2>Refunds</h2>
       <p>
-        If Klips doesn't work on your computer, email support@klips.pro within 14 days of your first purchase and we'll
+        If Klips doesn't work on your computer, email kcd.ryanc@gmail.com within 14 days of your first purchase and we'll
         refund it in full, as long as you've used fewer than 30 tokens. Beyond that we refund unused tokens at our
         discretion. Subscriptions can be cancelled any time from your account page; cancelling stops future charges and
         yearly plans aren't refunded for months already paid.
@@ -116,7 +116,7 @@ export function Privacy() {
 
       <h2>Your choices</h2>
       <p>
-        Email support@klips.pro to get a copy of your data or to delete your account. Deleting removes your account,
+        Email kcd.ryanc@gmail.com to get a copy of your data or to delete your account. Deleting removes your account,
         sign-in details and history; we keep payment records where tax law requires it.
       </p>
 

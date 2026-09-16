@@ -302,7 +302,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     if (await limiter.blocked(env, ipKey, 10, HOUR)) return fail("Too many reset requests. Try again in an hour.", 429);
     if (!isValidEmail(email)) return fail("Enter a valid email address.");
     if (!env.RESEND_API_KEY) {
-      return fail("Password reset emails aren't switched on yet. Email support@klips.pro and we'll help you back in.", 503);
+      return fail("Password reset emails aren't switched on yet. Email kcd.ryanc@gmail.com and we'll help you back in.", 503);
     }
     await limiter.hit(env, ipKey, HOUR);
     const user = await getUserByEmail(env, email);

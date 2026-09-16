@@ -6,6 +6,7 @@ Closing the window quits Klips. This is the entry point the installers are built
 """
 from __future__ import annotations
 
+import json
 import os
 import socket
 import sys
@@ -76,6 +77,13 @@ def main() -> None:
             code = 1
         else:
             print("SMOKE OK: local server answered")
+            try:
+                with urllib.request.urlopen(url + "api/claude/status", timeout=60) as response:
+                    status = json.loads(response.read().decode())
+                print(f"SMOKE OK: Claude Code setup check ({status['platform']}, installed={status['installed']})")
+            except Exception as e:  # noqa: BLE001 - any failure here fails the build
+                print(f"SMOKE FAIL: Claude Code setup check: {e}")
+                code = 1
         sys.exit(code)
 
     try:

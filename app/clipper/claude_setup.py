@@ -119,9 +119,20 @@ def open_sign_in() -> None:
         return
     command = f"{shlex.quote(exe)} auth login"
     if system == "mac":
-        script = command.replace("\\", "\\\\").replace('"', '\\"')
-        subprocess.run(["osascript", "-e", 'tell application "Terminal"', "-e", "activate",
-                        "-e", f'do script "{script}"', "-e", "end tell"], check=True, timeout=30)
+        # A .command file opens in Terminal without asking for permission to control other apps.
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        script = DATA_DIR / "Sign in to Claude.command"
+        script.write_text(
+            "#!/bin/bash\n"
+            "clear\n"
+            "echo 'Klips: signing in to Claude Code. Follow the steps in your browser.'\n"
+            "echo\n"
+            f"{command}\n"
+            "echo\n"
+            "echo 'All done. You can close this window and go back to Klips.'\n"
+        )
+        script.chmod(0o755)
+        subprocess.run(["open", "-a", "Terminal", str(script)], check=True, timeout=30)
         return
     for terminal in (["x-terminal-emulator", "-e"], ["gnome-terminal", "--"], ["konsole", "-e"], ["xterm", "-e"]):
         if shutil.which(terminal[0]):
