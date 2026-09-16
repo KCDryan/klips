@@ -1,8 +1,9 @@
-"""Klips licence and token client.
+"""Klips account and token client.
 
 The app runs entirely on the customer's machine; this module is the only part that talks to klips.pro.
-It activates a licence key, reserves tokens before a run (3 per clip) and reports what was delivered,
-so clips that fail are refunded automatically.
+The customer signs in with their klips.pro email and password; the site hands back an app key that is
+saved locally and sent with every token request. Tokens are reserved before a run (3 per clip) and
+clips that fail are refunded automatically.
 """
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ from .config import DATA_DIR
 API_BASE = os.environ.get("KLIPS_API", "https://klips.pro").rstrip("/")
 TOKENS_PER_CLIP = 3
 TIMEOUT = 20
-USER_AGENT = f"Klips/{os.environ.get('KLIPS_VERSION', '1.0.0')} (desktop app; +https://klips.pro)"
+USER_AGENT = f"Klips/{os.environ.get('KLIPS_VERSION', '1.1.0')} (desktop app; +https://klips.pro)"
 
 
 class KlipsError(RuntimeError):
@@ -98,21 +99,25 @@ def _post(path: str, payload: dict) -> dict:
         raise KlipsError("klips.pro took too long to respond. Try again in a moment.") from None
 
 
-def activate(key: str) -> dict:
-    """Check a licence key and remember it. Returns the account's email and token balance."""
-    key = key.strip().upper()
-    if not key:
-        raise KlipsError("Enter your licence key.")
+def sign_in(email: str, password: str) -> dict:
+    """Sign in with a klips.pro account. The password is sent once and never stored."""
+    email = email.strip()
+    if not email or not password:
+        raise KlipsError("Enter the email and password for your Klips account.")
     data = load_license()
-    result = _post("/api/app/activate", {
-        "license_key": key,
-        "device_id": data.get("device_id") or uuid.uuid4().hex,
+    device = data.get("device_id") or uuid.uuid4().hex
+    result = _post("/api/app/login", {
+        "email": email,
+        "password": password,
+        "device_id": device,
         "device_name": device_name(),
     })
+    if not result.get("app_key"):
+        raise KlipsError("klips.pro didn't return an app key. Try again in a moment.")
     save_license({
-        "key": key,
-        "email": result.get("email", ""),
-        "device_id": data.get("device_id") or uuid.uuid4().hex,
+        "key": result["app_key"],
+        "email": result.get("email", email),
+        "device_id": device,
         "tokens": result.get("tokens", 0),
     })
     return result
@@ -122,7 +127,7 @@ def refresh() -> dict:
     """Current balance for the saved licence key."""
     key = license_key()
     if not key:
-        raise KlipsError("No licence key saved yet.")
+        raise KlipsError("Sign in to your Klips account first.")
     result = _post("/api/app/activate", {
         "license_key": key,
         "device_id": device_id(),
@@ -138,7 +143,7 @@ def reserve(clips: int, source_name: str, source_seconds: float, platform_id: st
     """Take tokens before a run. Raises KlipsError with a clear message when the balance is short."""
     key = license_key()
     if not key:
-        raise KlipsError("Add your licence key to start making clips.")
+        raise KlipsError("Sign in to your Klips account to start making clips.")
     return _post("/api/app/reserve", {
         "license_key": key,
         "clips": int(clips),

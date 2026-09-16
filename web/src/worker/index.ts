@@ -6,11 +6,29 @@
  */
 import { PACK, PLANS, TOKENS_PER_CLIP, YEARLY_DISCOUNT, normalizePackTokens, packCents, planById, planCents, planTokens, tokensForClips } from "../shared/pricing";
 import {
+  consumeResetToken,
+  createResetToken,
+  createSession,
+  endAllSessions,
+  endSession,
+  getPasswordHash,
+  isValidEmail,
+  limiter,
+  normalizeEmail,
+  passwordProblem,
+  sendEmail,
+  sessionCookie,
+  setPassword,
+  userFromSession,
+  verifyPassword,
+} from "./auth";
+import {
   type Env,
-  type License,
   type User,
-  ensureUser,
+  createUser,
+  ensureLicense,
   getLicense,
+  getUserByEmail,
   getUserById,
   id,
   normalizeLicenseKey,
@@ -18,7 +36,7 @@ import {
   refundTokens,
   spendTokens,
 } from "./db";
-import { createBillingPortal, createPackCheckout, createSubscriptionCheckout, handleStripeEvent, stripeClient, verifyStripeEvent } from "./stripe";
+import { createBillingPortal, createPackCheckout, createSubscriptionCheckout, handleStripeEvent, verifyStripeEvent } from "./stripe";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -46,7 +64,24 @@ async function requireLicense(env: Env, request: Request, body: Record<string, a
   return found;
 }
 
-async function accountPayload(env: Env, user: User, license: License) {
+/** The website signs in with an email and password; the browser keeps a session cookie. */
+async function requireSession(env: Env, request: Request): Promise<User | Response> {
+  return (await userFromSession(env, request)) ?? fail("Please sign in.", 401);
+}
+
+/** A JSON response that also signs the browser in. */
+async function signedIn(env: Env, user: User, status = 200): Promise<Response> {
+  const response = json({ email: user.email, tokens: user.tokens }, status);
+  response.headers.append("set-cookie", sessionCookie(await createSession(env, user.id)));
+  return response;
+}
+
+const clientIp = (request: Request) => request.headers.get("cf-connecting-ip") || "unknown";
+const FIFTEEN_MINUTES = 15 * 60;
+const HOUR = 60 * 60;
+const TOO_MANY = "Too many attempts. Wait 15 minutes and try again, or reset your password.";
+
+async function accountPayload(env: Env, user: User) {
   const [generations, ledger, subscription] = await Promise.all([
     env.DB.prepare(
       `SELECT id, status, source_name, clips_requested, clips_delivered, tokens_charged, platform,
@@ -65,7 +100,6 @@ async function accountPayload(env: Env, user: User, license: License) {
     email: user.email,
     tokens: user.tokens,
     clips_available: Math.floor(user.tokens / TOKENS_PER_CLIP),
-    license_key: license.key,
     has_billing: Boolean(user.stripe_customer_id),
     subscription: subscription ?? null,
     generations: (generations.results ?? []).map((row: any) => ({
@@ -149,20 +183,23 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     });
   }
 
+  // Buying needs an account, so tokens always land somewhere the customer can sign in to.
   if (path === "/api/checkout/pack" && method === "POST") {
+    const user = await requireSession(env, request);
+    if (user instanceof Response) return user;
     const body = await readJson(request);
     const tokens = normalizePackTokens(Number(body.tokens) || PACK.defaultTokens);
-    const checkoutUrl = await createPackCheckout(env, tokens, body.email);
-    return json({ url: checkoutUrl });
+    return json({ url: await createPackCheckout(env, tokens, user) });
   }
 
   if (path === "/api/checkout/subscription" && method === "POST") {
+    const user = await requireSession(env, request);
+    if (user instanceof Response) return user;
     const body = await readJson(request);
     const plan = planById(String(body.plan || ""));
     const interval = body.interval === "year" ? "year" : "month";
     if (!plan) return fail("Unknown plan.");
-    const checkoutUrl = await createSubscriptionCheckout(env, plan, interval, body.email);
-    return json({ url: checkoutUrl });
+    return json({ url: await createSubscriptionCheckout(env, plan, interval, user) });
   }
 
   if (path === "/api/stripe/webhook" && method === "POST") {
@@ -176,38 +213,188 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     return json({ received: true });
   }
 
-  /** After checkout, the success page shows the licence key for this session. */
+  /** After checkout: ready once the payment's tokens are on the account. */
   if (path === "/api/welcome" && method === "GET") {
-    const sessionId = url.searchParams.get("session_id");
-    if (!sessionId) return fail("Missing session id.");
-    const session = await stripeClient(env).checkout.sessions.retrieve(sessionId);
-    if (session.payment_status !== "paid" && session.status !== "complete") {
-      return json({ pending: true });
-    }
-    const email = session.customer_details?.email || session.customer_email;
-    if (!email) return fail("That checkout has no email address.", 404);
-    const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id ?? null;
-    const { user, license } = await ensureUser(env, email, customerId);
-    return json({ email: user.email, license_key: license.key, tokens: user.tokens });
+    const sessionId = url.searchParams.get("session_id") || "";
+    if (!sessionId.startsWith("cs_")) return fail("Missing checkout session.");
+    const purchase = await env.DB.prepare("SELECT user_id, tokens, kind, plan FROM purchases WHERE stripe_session_id = ?")
+      .bind(sessionId).first<{ user_id: string; tokens: number; kind: string; plan: string | null }>();
+    if (!purchase) return json({ ready: false });
+    const user = await getUserById(env, purchase.user_id);
+    return json({ ready: true, email: user?.email, tokens: user?.tokens ?? 0, added: purchase.tokens, kind: purchase.kind, plan: purchase.plan });
   }
 
-  // ---- account portal (signs in with the licence key) ----
+  // ---- accounts: email and password ----
+
+  if (path === "/api/auth/me" && method === "GET") {
+    const user = await userFromSession(env, request);
+    return user ? json({ signed_in: true, email: user.email, tokens: user.tokens }) : json({ signed_in: false });
+  }
+
+  if (path === "/api/auth/signup" && method === "POST") {
+    const body = await readJson(request);
+    const email = normalizeEmail(body.email);
+    const password = String(body.password ?? "");
+    const ipKey = `signup:${clientIp(request)}`;
+    if (await limiter.blocked(env, ipKey, 20, HOUR)) return fail("Too many new accounts from this network. Try again in an hour.", 429);
+    if (!isValidEmail(email)) return fail("Enter a valid email address.");
+    const problem = passwordProblem(password);
+    if (problem) return fail(problem);
+    await limiter.hit(env, ipKey, HOUR);
+
+    const existing = await getUserByEmail(env, email);
+    if (existing && (await getPasswordHash(env, existing.id))) {
+      return fail("There's already an account with this email. Sign in instead.", 409, { code: "exists" });
+    }
+    if (existing) {
+      // Bought before accounts existed: prove it's theirs with the key from the receipt, once.
+      const key = normalizeLicenseKey(String(body.license_key || ""));
+      const found = key ? await getLicense(env, key) : null;
+      if (!found || found.user.id !== existing.id) {
+        return fail(
+          key
+            ? "That key doesn't match this email. Check the key on your purchase receipt."
+            : "This email already bought Klips before accounts existed. Enter the licence key from your receipt once to set your password.",
+          409,
+          { code: "needs_license" },
+        );
+      }
+    }
+    const user = existing ?? (await createUser(env, email));
+    await setPassword(env, user.id, password);
+    await ensureLicense(env, user.id);
+    return signedIn(env, user, existing ? 200 : 201);
+  }
+
+  if (path === "/api/auth/login" && method === "POST") {
+    const body = await readJson(request);
+    const email = normalizeEmail(body.email);
+    const emailKey = `login:${email}`;
+    const ipKey = `ip:${clientIp(request)}`;
+    if ((await limiter.blocked(env, emailKey, 10, FIFTEEN_MINUTES)) || (await limiter.blocked(env, ipKey, 50, FIFTEEN_MINUTES))) {
+      return fail(TOO_MANY, 429);
+    }
+    const user = isValidEmail(email) ? await getUserByEmail(env, email) : null;
+    const hash = user ? await getPasswordHash(env, user.id) : null;
+    if (!user || !(await verifyPassword(String(body.password ?? ""), hash))) {
+      await limiter.hit(env, emailKey, FIFTEEN_MINUTES);
+      await limiter.hit(env, ipKey, FIFTEEN_MINUTES);
+      if (user && !hash) {
+        return fail("This email bought Klips before accounts existed. Choose \"Create account\" to set a password.", 401, { code: "needs_signup" });
+      }
+      return fail("That email and password don't match.", 401);
+    }
+    await limiter.clear(env, emailKey);
+    return signedIn(env, user);
+  }
+
+  if (path === "/api/auth/logout" && method === "POST") {
+    await endSession(env, request);
+    const response = json({ ok: true });
+    response.headers.append("set-cookie", sessionCookie("", 0));
+    return response;
+  }
+
+  if (path === "/api/auth/forgot" && method === "POST") {
+    const body = await readJson(request);
+    const email = normalizeEmail(body.email);
+    const ipKey = `forgot:${clientIp(request)}`;
+    if (await limiter.blocked(env, ipKey, 10, HOUR)) return fail("Too many reset requests. Try again in an hour.", 429);
+    if (!isValidEmail(email)) return fail("Enter a valid email address.");
+    if (!env.RESEND_API_KEY) {
+      return fail("Password reset emails aren't switched on yet. Email support@klips.pro and we'll help you back in.", 503);
+    }
+    await limiter.hit(env, ipKey, HOUR);
+    const user = await getUserByEmail(env, email);
+    if (user) {
+      const token = await createResetToken(env, user.id);
+      await sendEmail(
+        env,
+        user.email,
+        "Reset your Klips password",
+        `Someone asked to reset the password for your Klips account.\n\n` +
+          `Choose a new password here (the link works once, for one hour):\n${env.SITE_URL}/reset?token=${token}\n\n` +
+          `If this wasn't you, ignore this email. Your password hasn't changed.`,
+      );
+    }
+    // Same answer either way, so this can't be used to find out who has an account.
+    return json({ ok: true });
+  }
+
+  if (path === "/api/auth/reset" && method === "POST") {
+    const body = await readJson(request);
+    const problem = passwordProblem(body.password);
+    if (problem) return fail(problem);
+    const userId = await consumeResetToken(env, String(body.token || ""));
+    const user = userId ? await getUserById(env, userId) : null;
+    if (!user) return fail("That reset link has expired or was already used. Ask for a new one.", 400);
+    await setPassword(env, user.id, String(body.password));
+    await endAllSessions(env, user.id);
+    await limiter.clear(env, `login:${user.email}`);
+    return signedIn(env, user);
+  }
+
+  if (path === "/api/auth/password" && method === "POST") {
+    const user = await requireSession(env, request);
+    if (user instanceof Response) return user;
+    const body = await readJson(request);
+    if (!(await verifyPassword(String(body.current_password ?? ""), await getPasswordHash(env, user.id)))) {
+      return fail("Your current password isn't right.", 400);
+    }
+    const problem = passwordProblem(body.new_password);
+    if (problem) return fail(problem);
+    await setPassword(env, user.id, String(body.new_password));
+    await endAllSessions(env, user.id); // signs out every other browser
+    return signedIn(env, user);
+  }
+
+  // ---- account portal ----
 
   if (path === "/api/account" && method === "GET") {
-    const auth = await requireLicense(env, request);
-    if ("error" in auth) return auth.error;
-    return json(await accountPayload(env, auth.user, auth.license));
+    const user = await requireSession(env, request);
+    if (user instanceof Response) return user;
+    return json(await accountPayload(env, user));
   }
 
   if (path === "/api/account/portal" && method === "POST") {
-    const body = await readJson(request);
-    const auth = await requireLicense(env, request, body);
-    if ("error" in auth) return auth.error;
-    if (!auth.user.stripe_customer_id) return fail("No billing account yet. Buy tokens or a plan first.", 400);
-    return json({ url: await createBillingPortal(env, auth.user.stripe_customer_id) });
+    const user = await requireSession(env, request);
+    if (user instanceof Response) return user;
+    if (!user.stripe_customer_id) return fail("No billing account yet. Buy tokens or a plan first.", 400);
+    return json({ url: await createBillingPortal(env, user.stripe_customer_id) });
   }
 
   // ---- desktop app ----
+
+  /** The app signs in with the customer's email and password and receives its app key. */
+  if (path === "/api/app/login" && method === "POST") {
+    const body = await readJson(request);
+    const email = normalizeEmail(body.email);
+    const emailKey = `login:${email}`;
+    const ipKey = `ip:${clientIp(request)}`;
+    if ((await limiter.blocked(env, emailKey, 10, FIFTEEN_MINUTES)) || (await limiter.blocked(env, ipKey, 50, FIFTEEN_MINUTES))) {
+      return fail(TOO_MANY, 429);
+    }
+    const user = isValidEmail(email) ? await getUserByEmail(env, email) : null;
+    const hash = user ? await getPasswordHash(env, user.id) : null;
+    if (!user || !(await verifyPassword(String(body.password ?? ""), hash))) {
+      await limiter.hit(env, emailKey, FIFTEEN_MINUTES);
+      await limiter.hit(env, ipKey, FIFTEEN_MINUTES);
+      if (user && !hash) return fail("Finish setting up your account at klips.pro first (Create account).", 401);
+      return fail("That email and password don't match. Forgot it? Reset it at klips.pro.", 401);
+    }
+    await limiter.clear(env, emailKey);
+    const license = await ensureLicense(env, user.id);
+    await env.DB.prepare("UPDATE licenses SET device_id = ?, device_name = ?, last_seen_at = ? WHERE key = ?")
+      .bind(String(body.device_id || "").slice(0, 80), String(body.device_name || "").slice(0, 80), now(), license.key)
+      .run();
+    return json({
+      app_key: license.key,
+      email: user.email,
+      tokens: user.tokens,
+      clips_available: Math.floor(user.tokens / TOKENS_PER_CLIP),
+      tokens_per_clip: TOKENS_PER_CLIP,
+    });
+  }
 
   if (path === "/api/app/activate" && method === "POST") {
     const body = await readJson(request);

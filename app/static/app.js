@@ -145,7 +145,7 @@ function setupUpload() {
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     if (!input.files[0]) return toast("Add your meeting recording in box 1 first.");
-    if (!LICENSE.activated) return toast("Add your licence key first — it's in your account at klips.pro.", 6000);
+    if (!LICENSE.activated) return toast("Sign in to your Klips account first (the bar at the top).", 6000);
     const needed = tokenCost($("#new-job").clips.value);
     if (needed > LICENSE.tokens) {
       return toast(`That needs ${needed} tokens and you have ${LICENSE.tokens}. Top up at klips.pro.`, 7000);
@@ -602,6 +602,7 @@ function renderLicense() {
   chip.textContent = `${LICENSE.tokens.toLocaleString()} tokens`;
   chip.title = LICENSE.email ? `${LICENSE.email} · click to refresh` : "Click to refresh";
   $("#license-warning").hidden = LICENSE.activated;
+  $("#sign-out").hidden = !LICENSE.activated;
   updateCostLine();
 }
 
@@ -611,7 +612,7 @@ function updateCostLine() {
   const clips = Number($("#new-job").clips.value) || 0;
   const cost = tokenCost(clips);
   if (!LICENSE.activated) {
-    line.textContent = "Activate your licence key to generate clips.";
+    line.textContent = "Sign in to your Klips account to generate clips.";
     line.classList.remove("short");
     return;
   }
@@ -634,19 +635,29 @@ async function refreshLicense(remote = false) {
 function setupLicense() {
   $("#license-warning").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const input = $("#license-input");
+    const email = $("#account-email");
+    const password = $("#account-password");
+    const button = e.submitter || $("#license-warning button[type=submit]");
+    button.disabled = true;
     try {
       LICENSE = await api("/api/license", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: input.value }),
+        body: JSON.stringify({ email: email.value, password: password.value }),
       });
-      input.value = "";
+      password.value = "";
       renderLicense();
-      toast(`Licence activated · ${LICENSE.tokens} tokens ready`);
+      toast(`Signed in as ${LICENSE.email} · ${LICENSE.tokens.toLocaleString()} tokens ready`);
     } catch (err) {
       toast(err.message, 6000);
+    } finally {
+      button.disabled = false;
     }
+  });
+  $("#sign-out").addEventListener("click", async () => {
+    LICENSE = await api("/api/license", { method: "DELETE" });
+    renderLicense();
+    toast("Signed out of Klips");
   });
   $("#token-chip").addEventListener("click", () => refreshLicense(true));
   $("#new-job").clips.addEventListener("input", updateCostLine);

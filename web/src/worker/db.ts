@@ -8,6 +8,10 @@ export interface Env {
   DOWNLOADS: R2Bucket;
   /** Private key for uploading installers (scripts/upload_installer.py). Not for customers. */
   ADMIN_TOKEN: string;
+  /** Optional: sends password reset emails through Resend (resend.com). */
+  RESEND_API_KEY?: string;
+  /** Sender for account emails, e.g. "Klips <accounts@klips.pro>". */
+  EMAIL_FROM?: string;
 }
 
 export interface User {
@@ -68,32 +72,40 @@ export async function getUserByStripeCustomer(env: Env, customerId: string): Pro
   return env.DB.prepare("SELECT * FROM users WHERE stripe_customer_id = ?").bind(customerId).first<User>();
 }
 
-/** Find or create the account for an email address, and make sure it has a licence key. */
-export async function ensureUser(env: Env, email: string, stripeCustomerId?: string | null): Promise<{ user: User; license: License }> {
-  const ts = now();
-  const lower = email.toLowerCase();
-  let user = await getUserByEmail(env, lower);
-  if (!user) {
-    const userId = id("usr");
-    await env.DB.prepare(
-      "INSERT INTO users (id, email, stripe_customer_id, tokens, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)",
-    ).bind(userId, lower, stripeCustomerId ?? null, ts, ts).run();
-    user = (await getUserById(env, userId))!;
-  } else if (stripeCustomerId && user.stripe_customer_id !== stripeCustomerId) {
-    await env.DB.prepare("UPDATE users SET stripe_customer_id = ?, updated_at = ? WHERE id = ?")
-      .bind(stripeCustomerId, ts, user.id).run();
-    user = (await getUserById(env, user.id))!;
-  }
+/** Remember the Stripe customer for an account, so later purchases and the billing portal use the same one. */
+export async function linkStripeCustomer(env: Env, user: User, customerId: string | null): Promise<User> {
+  if (!customerId || user.stripe_customer_id === customerId) return user;
+  await env.DB.prepare("UPDATE users SET stripe_customer_id = ?, updated_at = ? WHERE id = ?").bind(customerId, now(), user.id).run();
+  return (await getUserById(env, user.id))!;
+}
 
-  let license = await env.DB.prepare("SELECT * FROM licenses WHERE user_id = ? AND status = 'active' ORDER BY created_at LIMIT 1")
-    .bind(user.id).first<License>();
-  if (!license) {
-    const key = newLicenseKey();
-    await env.DB.prepare("INSERT INTO licenses (key, user_id, status, created_at) VALUES (?, ?, 'active', ?)")
-      .bind(key, user.id, ts).run();
-    license = (await env.DB.prepare("SELECT * FROM licenses WHERE key = ?").bind(key).first<License>())!;
-  }
-  return { user, license };
+/** Create an account with no password yet (sign-up adds the password straight after). */
+export async function createUser(env: Env, email: string): Promise<User> {
+  const ts = now();
+  const userId = id("usr");
+  await env.DB.prepare("INSERT INTO users (id, email, stripe_customer_id, tokens, created_at, updated_at) VALUES (?, ?, NULL, 0, ?, ?)")
+    .bind(userId, email.toLowerCase(), ts, ts).run();
+  return (await getUserById(env, userId))!;
+}
+
+/**
+ * The account's app key. Customers never see it: the desktop app receives it when they sign in
+ * with their email and password, and uses it for every token request after that.
+ */
+export async function ensureLicense(env: Env, userId: string): Promise<License> {
+  const existing = await env.DB.prepare("SELECT * FROM licenses WHERE user_id = ? AND status = 'active' ORDER BY created_at LIMIT 1")
+    .bind(userId).first<License>();
+  if (existing) return existing;
+  const key = newLicenseKey();
+  await env.DB.prepare("INSERT INTO licenses (key, user_id, status, created_at) VALUES (?, ?, 'active', ?)").bind(key, userId, now()).run();
+  return (await env.DB.prepare("SELECT * FROM licenses WHERE key = ?").bind(key).first<License>())!;
+}
+
+/** Find or create the account for an email address (used for checkouts made before accounts existed). */
+export async function ensureUser(env: Env, email: string, stripeCustomerId?: string | null): Promise<{ user: User; license: License }> {
+  const found = await getUserByEmail(env, email);
+  const user = await linkStripeCustomer(env, found ?? (await createUser(env, email)), stripeCustomerId ?? null);
+  return { user, license: await ensureLicense(env, user.id) };
 }
 
 export async function getLicense(env: Env, key: string): Promise<{ license: License; user: User } | null> {

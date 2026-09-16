@@ -13,17 +13,19 @@
     <a href="#/">Projects</a>
     <button id="open-brand" class="ghost">Brand kit</button>
     <button id="token-chip" class="chip" hidden></button>
+    <button id="sign-out" class="link-button" type="button" hidden>Sign out</button>
   </nav>
 </header>
 
 <form id="license-warning" class="banner key-form" hidden>
   <div>
-    <strong>Add your licence key to start making clips.</strong>
-    <span>It's on your receipt and in your account at <a href="https://klips.pro/account" target="_blank" rel="noopener">klips.pro</a>. No key yet? <a href="https://klips.pro" target="_blank" rel="noopener">Get tokens from $1</a>.</span>
+    <strong>Sign in to your Klips account to start making clips.</strong>
+    <span>Use the email and password from <a href="https://klips.pro/login" target="_blank" rel="noopener">klips.pro</a>. New here? <a href="https://klips.pro/signup" target="_blank" rel="noopener">Create an account</a> · <a href="https://klips.pro/forgot" target="_blank" rel="noopener">Forgot password?</a></span>
   </div>
   <div class="key-row">
-    <input type="text" id="license-input" placeholder="KLIPS-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" required>
-    <button class="primary" type="submit">Activate</button>
+    <input type="email" id="account-email" placeholder="you@example.com" autocomplete="email" required>
+    <input type="password" id="account-password" placeholder="Password" autocomplete="current-password" required>
+    <button class="primary" type="submit">Sign in</button>
   </div>
 </form>
 

@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at          INTEGER NOT NULL
 );
 
--- A licence key is the customer's sign-in for both the desktop app and the account portal.
+-- The desktop app's key for an account. Customers sign in with email and password; the app receives this key
+-- when they do, and sends it with every token request.
 CREATE TABLE IF NOT EXISTS licenses (
   key           TEXT PRIMARY KEY,                 -- KLIPS-XXXX-XXXX-XXXX-XXXX
   user_id       TEXT NOT NULL REFERENCES users(id),
@@ -90,7 +91,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 );
 CREATE INDEX IF NOT EXISTS subscriptions_user ON subscriptions(user_id);
 
--- Short-lived sign-in codes emailed/shown to customers for the account portal.
+-- Signed-in browser sessions for the account portal (token stored as its SHA-256).
 CREATE TABLE IF NOT EXISTS sessions (
   token      TEXT PRIMARY KEY,                    -- random, stored hashed
   user_id    TEXT NOT NULL REFERENCES users(id),
@@ -98,3 +99,26 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
+
+-- Email and password sign-in. One row per account that has set a password.
+CREATE TABLE IF NOT EXISTS credentials (
+  user_id       TEXT PRIMARY KEY REFERENCES users(id),
+  password_hash TEXT NOT NULL,                    -- pbkdf2-sha256$iterations$salt$hash
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL
+);
+
+-- One-time password reset links (stored hashed, valid for an hour).
+CREATE TABLE IF NOT EXISTS password_resets (
+  token      TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id),
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+
+-- Sign-in and sign-up attempt counters, to slow down password guessing.
+CREATE TABLE IF NOT EXISTS auth_attempts (
+  key          TEXT PRIMARY KEY,                  -- login:<email> | ip:<address> | signup:<address>
+  count        INTEGER NOT NULL,
+  window_start INTEGER NOT NULL
+);

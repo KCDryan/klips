@@ -11,7 +11,7 @@ import {
   planCents,
   planTokens,
 } from "../shared/pricing";
-import { type Env, creditTokens, ensureUser, getUserByStripeCustomer, id, now } from "./db";
+import { type Env, type User, creditTokens, ensureUser, getUserById, getUserByStripeCustomer, id, linkStripeCustomer, now } from "./db";
 
 /**
  * Stripe product tax code, required by Managed Payments (Stripe handles sales tax and VAT).
@@ -31,15 +31,25 @@ export function stripeClient(env: Env): Stripe {
   });
 }
 
+/** Ties a checkout to the signed-in account, reusing its Stripe customer when it has one. */
+function customerFields(user: User) {
+  return user.stripe_customer_id
+    ? { customer: user.stripe_customer_id }
+    : { customer_email: user.email };
+}
+
 /** Checkout for a one-off token pack chosen on the slider. */
-export async function createPackCheckout(env: Env, tokens: number, email?: string): Promise<string> {
+export async function createPackCheckout(env: Env, tokens: number, user: User): Promise<string> {
   const stripe = stripeClient(env);
   const amount = normalizePackTokens(tokens);
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     success_url: `${env.SITE_URL}/welcome?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${env.SITE_URL}/pricing`,
-    customer_email: email || undefined,
+    cancel_url: `${env.SITE_URL}/#pricing`,
+    ...customerFields(user),
+    // Always create a Stripe customer, so receipts and the billing portal work for one-off packs too.
+    ...(user.stripe_customer_id ? {} : { customer_creation: "always" as const }),
+    client_reference_id: user.id,
     allow_promotion_codes: true,
     line_items: [
       {
@@ -55,21 +65,22 @@ export async function createPackCheckout(env: Env, tokens: number, email?: strin
         },
       },
     ],
-    metadata: { kind: "pack", tokens: String(amount) },
-    payment_intent_data: { metadata: { kind: "pack", tokens: String(amount) } },
+    metadata: { kind: "pack", tokens: String(amount), user_id: user.id },
+    payment_intent_data: { metadata: { kind: "pack", tokens: String(amount), user_id: user.id } },
   });
   return session.url!;
 }
 
 /** Checkout for a monthly or yearly plan. Yearly is billed once for the whole year. */
-export async function createSubscriptionCheckout(env: Env, plan: Plan, interval: Interval, email?: string): Promise<string> {
+export async function createSubscriptionCheckout(env: Env, plan: Plan, interval: Interval, user: User): Promise<string> {
   const stripe = stripeClient(env);
   const tokens = planTokens(plan, interval);
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     success_url: `${env.SITE_URL}/welcome?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${env.SITE_URL}/pricing`,
-    customer_email: email || undefined,
+    cancel_url: `${env.SITE_URL}/#pricing`,
+    ...customerFields(user),
+    client_reference_id: user.id,
     allow_promotion_codes: true,
     line_items: [
       {
@@ -89,8 +100,8 @@ export async function createSubscriptionCheckout(env: Env, plan: Plan, interval:
         },
       },
     ],
-    metadata: { kind: "subscription", plan: plan.id, interval, tokens: String(tokens) },
-    subscription_data: { metadata: { kind: "subscription", plan: plan.id, interval, tokens: String(tokens) } },
+    metadata: { kind: "subscription", plan: plan.id, interval, tokens: String(tokens), user_id: user.id },
+    subscription_data: { metadata: { kind: "subscription", plan: plan.id, interval, tokens: String(tokens), user_id: user.id } },
   });
   return session.url!;
 }
@@ -178,10 +189,18 @@ export async function handleStripeEvent(env: Env, event: Stripe.Event): Promise<
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
-    const email = session.customer_details?.email || session.customer_email;
-    if (!email) throw new Error("checkout session without an email");
     const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id ?? null;
-    const { user } = await ensureUser(env, email, customerId);
+    const accountId = session.client_reference_id || session.metadata?.user_id || "";
+    const account = accountId ? await getUserById(env, accountId) : null;
+    let user: User;
+    if (account) {
+      user = await linkStripeCustomer(env, account, customerId);
+    } else {
+      // Checkouts started before accounts existed carry only an email address.
+      const email = session.customer_details?.email || session.customer_email;
+      if (!email) throw new Error("checkout session without an account or email");
+      user = (await ensureUser(env, email, customerId)).user;
+    }
 
     if (session.mode === "payment") {
       const tokens = Number(session.metadata?.tokens || 0);
@@ -261,7 +280,8 @@ export async function handleStripeEvent(env: Env, event: Stripe.Event): Promise<
   if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
     const subscription = event.data.object as Stripe.Subscription;
     const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
-    const user = await getUserByStripeCustomer(env, customerId);
+    const user = (subscription.metadata?.user_id ? await getUserById(env, subscription.metadata.user_id) : null)
+      ?? (await getUserByStripeCustomer(env, customerId));
     if (!user) return;
     const planId = String(subscription.metadata?.plan || "");
     const interval = String(subscription.metadata?.interval || "month");

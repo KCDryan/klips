@@ -1,4 +1,4 @@
-/** Tiny API client for the Klips Worker. */
+/** Tiny API client for the Klips Worker. The browser's session cookie is sent automatically. */
 
 export class ApiError extends Error {
   status: number;
@@ -10,18 +10,18 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit & { licenseKey?: string } = {}): Promise<T> {
-  const { licenseKey, ...init } = options;
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body) headers.set("content-type", "application/json");
-  if (licenseKey) headers.set("x-klips-key", licenseKey);
-  const response = await fetch(path, { ...init, headers });
+  const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
   const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
     throw new ApiError(String(data.error || response.statusText), response.status, data);
   }
   return data as T;
 }
+
+const post = <T>(path: string, body: unknown = {}) => request<T>(path, { method: "POST", body: JSON.stringify(body) });
 
 export interface Generation {
   id: string;
@@ -57,52 +57,84 @@ export interface Account {
   email: string;
   tokens: number;
   clips_available: number;
-  license_key: string;
   has_billing: boolean;
   subscription: Subscription | null;
   generations: Generation[];
   ledger: LedgerEntry[];
 }
 
+export interface Me {
+  signed_in: boolean;
+  email?: string;
+  tokens?: number;
+}
+
 export const api = {
-  account: (licenseKey: string) => request<Account>("/api/account", { licenseKey }),
+  me: () => request<Me>("/api/auth/me"),
+  signUp: (email: string, password: string, licenseKey?: string) =>
+    post<Me>("/api/auth/signup", { email, password, license_key: licenseKey || undefined }),
+  signIn: (email: string, password: string) => post<Me>("/api/auth/login", { email, password }),
+  signOut: () => post<{ ok: true }>("/api/auth/logout"),
+  forgotPassword: (email: string) => post<{ ok: true }>("/api/auth/forgot", { email }),
+  resetPassword: (token: string, password: string) => post<Me>("/api/auth/reset", { token, password }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    post<Me>("/api/auth/password", { current_password: currentPassword, new_password: newPassword }),
 
-  billingPortal: (licenseKey: string) =>
-    request<{ url: string }>("/api/account/portal", { method: "POST", licenseKey, body: "{}" }),
+  account: () => request<Account>("/api/account"),
+  billingPortal: () => post<{ url: string }>("/api/account/portal"),
 
-  buyTokens: (tokens: number, email?: string) =>
-    request<{ url: string }>("/api/checkout/pack", {
-      method: "POST",
-      body: JSON.stringify({ tokens, email }),
-    }),
-
-  subscribe: (plan: string, interval: "month" | "year", email?: string) =>
-    request<{ url: string }>("/api/checkout/subscription", {
-      method: "POST",
-      body: JSON.stringify({ plan, interval, email }),
-    }),
+  buyTokens: (tokens: number) => post<{ url: string }>("/api/checkout/pack", { tokens }),
+  subscribe: (plan: string, interval: "month" | "year") => post<{ url: string }>("/api/checkout/subscription", { plan, interval }),
 
   welcome: (sessionId: string) =>
-    request<{ email?: string; license_key?: string; tokens?: number; pending?: boolean }>(
+    request<{ ready: boolean; email?: string; tokens?: number; added?: number; kind?: string; plan?: string | null }>(
       `/api/welcome?session_id=${encodeURIComponent(sessionId)}`,
     ),
 };
 
-const STORAGE_KEY = "klips.licenseKey";
+/**
+ * What someone was buying when we asked them to sign in, so checkout carries on straight after.
+ * Kept in sessionStorage: it only lives for this tab.
+ */
+export type PendingPurchase = { kind: "pack"; tokens: number } | { kind: "plan"; plan: string; interval: "month" | "year" };
 
-export function savedLicenseKey(): string {
+const PENDING_KEY = "klips.pendingPurchase";
+
+export function setPendingPurchase(purchase: PendingPurchase | null): void {
   try {
-    return localStorage.getItem(STORAGE_KEY) || "";
+    if (purchase) sessionStorage.setItem(PENDING_KEY, JSON.stringify(purchase));
+    else sessionStorage.removeItem(PENDING_KEY);
   } catch {
-    return "";
+    /* storage blocked: they'll just pick their tokens again */
   }
 }
 
-export function saveLicenseKey(key: string): void {
+export function takePendingPurchase(): PendingPurchase | null {
   try {
-    if (key) localStorage.setItem(STORAGE_KEY, key);
-    else localStorage.removeItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(PENDING_KEY);
+    sessionStorage.removeItem(PENDING_KEY);
+    return raw ? (JSON.parse(raw) as PendingPurchase) : null;
   } catch {
-    /* private browsing: the key just won't be remembered */
+    return null;
+  }
+}
+
+/**
+ * Start checkout; when signed out, remember the choice and send them to create an account.
+ * Resolves true while the browser is leaving for Stripe, false when it went to sign-up instead.
+ */
+export async function startCheckout(purchase: PendingPurchase, goToSignUp: () => void): Promise<boolean> {
+  try {
+    const { url } =
+      purchase.kind === "pack" ? await api.buyTokens(purchase.tokens) : await api.subscribe(purchase.plan, purchase.interval);
+    window.location.href = url;
+    return true;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) {
+      setPendingPurchase(purchase);
+      goToSignUp();
+      return false;
+    }
+    throw e;
   }
 }

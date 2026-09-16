@@ -10,7 +10,8 @@ import {
   packCents,
   planCents,
 } from "../../shared/pricing";
-import { api } from "../lib/api";
+import { navigate } from "../App";
+import { startCheckout } from "../lib/api";
 
 function Spinner() {
   return <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-ink-950/40 border-t-ink-950" />;
@@ -26,8 +27,7 @@ export function TokenSlider() {
     setBusy(true);
     setError("");
     try {
-      const { url } = await api.buyTokens(tokens);
-      window.location.href = url;
+      if (!(await startCheckout({ kind: "pack", tokens }, () => navigate("/signup")))) setBusy(false);
     } catch (e) {
       setError((e as Error).message || "Checkout is unavailable right now.");
       setBusy(false);
@@ -108,8 +108,7 @@ export function PlanCards() {
     setBusy(plan);
     setError("");
     try {
-      const { url } = await api.subscribe(plan, interval);
-      window.location.href = url;
+      if (!(await startCheckout({ kind: "plan", plan, interval }, () => navigate("/signup")))) setBusy("");
     } catch (e) {
       setError((e as Error).message || "Checkout is unavailable right now.");
       setBusy("");

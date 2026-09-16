@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import { formatUsd, planById } from "../../shared/pricing";
 import { navigate } from "../App";
 import { TokenSlider } from "../components/Pricing";
-import { type Account as AccountData, api, saveLicenseKey, savedLicenseKey } from "../lib/api";
+import { Logo } from "../components/SiteHeader";
+import { type Account as AccountData, ApiError, api } from "../lib/api";
 
 const formatDate = (seconds: number) =>
   new Date(seconds * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -16,67 +17,6 @@ const REASON_LABELS: Record<string, string> = {
   manual: "Adjustment",
 };
 
-function SignIn({ onSignedIn }: { onSignedIn: (key: string) => void }) {
-  const [key, setKey] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      await api.account(key.trim());
-      saveLicenseKey(key.trim());
-      onSignedIn(key.trim());
-    } catch (e) {
-      setError((e as Error).message || "That key didn't work.");
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="relative min-h-screen overflow-hidden">
-      <div className="aurora" />
-      <div className="mx-auto max-w-md px-5 py-24">
-        <button type="button" onClick={() => navigate("/")} className="text-sm text-ink-500 hover:text-ink-100">
-          ← Back to klips.pro
-        </button>
-        <div className="card mt-6 p-8">
-          <h1 className="text-2xl font-bold">Your account</h1>
-          <p className="mt-2 text-sm text-ink-300">
-            Sign in with the licence key from your purchase. It's the same key the app uses.
-          </p>
-          <form onSubmit={submit} className="mt-6">
-            <label className="text-sm text-ink-300" htmlFor="key">
-              Licence key
-            </label>
-            <input
-              id="key"
-              value={key}
-              onChange={(e) => setKey(e.target.value.toUpperCase())}
-              placeholder="KLIPS-XXXX-XXXX-XXXX-XXXX"
-              autoComplete="off"
-              spellCheck={false}
-              className="mt-2 w-full rounded-xl border border-ink-700 bg-ink-950 px-4 py-3 font-mono tracking-wider outline-none focus:border-brand-500"
-            />
-            {error ? <p className="mt-3 text-sm text-red-400">{error}</p> : null}
-            <button type="submit" className="btn btn-primary mt-5 w-full" disabled={busy || key.length < 8}>
-              {busy ? "Checking…" : "Sign in"}
-            </button>
-          </form>
-          <p className="mt-5 text-sm text-ink-500">
-            Don't have a key yet?{" "}
-            <button type="button" className="text-brand-500 hover:underline" onClick={() => navigate("/")}>
-              Buy tokens
-            </button>
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="card p-6">
@@ -87,33 +27,91 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
+/** Change password, from the Settings tab. */
+function PasswordForm() {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setMessage(null);
+    try {
+      await api.changePassword(current, next);
+      setCurrent("");
+      setNext("");
+      setMessage({ ok: true, text: "Password changed. Other browsers have been signed out." });
+    } catch (e) {
+      setMessage({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="card max-w-xl space-y-4 p-6">
+      <h3 className="font-semibold">Change password</h3>
+      <div>
+        <label className="text-sm text-ink-300" htmlFor="current-password">
+          Current password
+        </label>
+        <input
+          id="current-password"
+          type="password"
+          className="field"
+          value={current}
+          onChange={(e) => setCurrent(e.target.value)}
+          autoComplete="current-password"
+          required
+        />
+      </div>
+      <div>
+        <label className="text-sm text-ink-300" htmlFor="new-password">
+          New password
+        </label>
+        <input
+          id="new-password"
+          type="password"
+          className="field"
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          autoComplete="new-password"
+          minLength={8}
+          placeholder="At least 8 characters"
+          required
+        />
+      </div>
+      {message ? <p className={`text-sm ${message.ok ? "text-emerald-400" : "text-red-400"}`}>{message.text}</p> : null}
+      <button type="submit" className="btn btn-primary" disabled={busy}>
+        {busy ? "Saving…" : "Save new password"}
+      </button>
+    </form>
+  );
+}
+
 export function Account() {
-  const [licenseKey, setLicenseKey] = useState(savedLicenseKey());
   const [data, setData] = useState<AccountData | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"history" | "tokens" | "billing">("history");
-  const [copied, setCopied] = useState(false);
+  const [tab, setTab] = useState<"history" | "tokens" | "billing" | "settings">("history");
 
-  const load = useCallback(async (key: string) => {
+  const load = useCallback(async () => {
     try {
-      setData(await api.account(key));
+      setData(await api.account());
       setError("");
     } catch (e) {
-      setError((e as Error).message);
-      if ((e as { status?: number }).status === 403) {
-        saveLicenseKey("");
-        setLicenseKey("");
+      if (e instanceof ApiError && e.status === 401) {
+        navigate("/login");
+        return;
       }
+      setError((e as Error).message);
     }
   }, []);
 
   useEffect(() => {
-    if (licenseKey) void load(licenseKey);
-  }, [licenseKey, load]);
-
-  if (!licenseKey) {
-    return <SignIn onSignedIn={setLicenseKey} />;
-  }
+    void load();
+  }, [load]);
 
   if (!data) {
     return (
@@ -121,7 +119,7 @@ export function Account() {
         {error ? (
           <div className="card p-8 text-center">
             <p className="text-ink-300">{error}</p>
-            <button type="button" className="btn btn-ghost mt-4" onClick={() => void load(licenseKey)}>
+            <button type="button" className="btn btn-ghost mt-4" onClick={() => void load()}>
               Try again
             </button>
           </div>
@@ -137,38 +135,26 @@ export function Account() {
 
   const openBilling = async () => {
     try {
-      const { url } = await api.billingPortal(licenseKey);
+      const { url } = await api.billingPortal();
       window.location.href = url;
     } catch (e) {
       setError((e as Error).message);
     }
   };
 
-  const copyKey = async () => {
-    await navigator.clipboard.writeText(data.license_key);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const signOut = async () => {
+    await api.signOut().catch(() => undefined);
+    navigate("/");
   };
 
   return (
     <div className="min-h-screen">
       <header className="border-b border-ink-800">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4">
-          <button type="button" onClick={() => navigate("/")} className="flex items-center gap-2 font-extrabold">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-500 text-ink-950">K</span>
-            Klips
-          </button>
+          <Logo className="text-base" />
           <div className="flex items-center gap-3 text-sm">
             <span className="hidden text-ink-500 sm:inline">{data.email}</span>
-            <button
-              type="button"
-              className="btn btn-ghost text-sm"
-              onClick={() => {
-                saveLicenseKey("");
-                setLicenseKey("");
-                setData(null);
-              }}
-            >
+            <button type="button" className="btn btn-ghost text-sm" onClick={signOut}>
               Sign out
             </button>
           </div>
@@ -197,12 +183,19 @@ export function Account() {
 
         <div className="card mt-5 flex flex-wrap items-center justify-between gap-4 p-6">
           <div>
-            <div className="text-sm text-ink-500">Licence key — use this in the app</div>
-            <code className="mt-1 block font-mono text-lg tracking-wider text-brand-500">{data.license_key}</code>
+            <div className="font-semibold">Get the Klips app</div>
+            <p className="mt-1 text-sm text-ink-300">
+              Sign in to the app with <span className="text-ink-100">{data.email}</span> and your password.
+            </p>
           </div>
-          <button type="button" className="btn btn-ghost" onClick={copyKey}>
-            {copied ? "Copied" : "Copy key"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <a className="btn btn-primary text-sm" href="/download/mac">
+              Download for Mac
+            </a>
+            <a className="btn btn-ghost text-sm" href="/download/windows">
+              Download for Windows
+            </a>
+          </div>
         </div>
 
         <nav className="mt-10 flex gap-1 border-b border-ink-800">
@@ -210,6 +203,7 @@ export function Account() {
             ["history", "Your clips"],
             ["tokens", "Buy tokens"],
             ["billing", "Billing"],
+            ["settings", "Settings"],
           ] as const).map(([value, label]) => (
             <button
               key={value}
@@ -228,7 +222,7 @@ export function Account() {
           <div className="mt-6 space-y-3">
             {data.generations.length === 0 ? (
               <div className="card p-10 text-center text-ink-300">
-                No clips yet. Open the Klips app, paste your licence key and drop in a video.
+                No clips yet. Open the Klips app, sign in with this account and drop in a video.
               </div>
             ) : null}
             {data.generations.map((generation) => (
@@ -315,6 +309,9 @@ export function Account() {
                 </tbody>
               </table>
             </div>
+            {!data.has_billing ? (
+              <p className="text-sm text-ink-500">The billing portal opens after your first purchase.</p>
+            ) : null}
             {plan ? (
               <p className="text-sm text-ink-500">
                 {plan.name} · {formatUsd(plan.monthlyCents)} a month equivalent ·{" "}
@@ -323,6 +320,15 @@ export function Account() {
                   : ""}
               </p>
             ) : null}
+          </div>
+        ) : null}
+        {tab === "settings" ? (
+          <div className="mt-6 space-y-5">
+            <div className="card max-w-xl p-6">
+              <div className="text-sm text-ink-500">Signed in as</div>
+              <div className="mt-1 font-semibold">{data.email}</div>
+            </div>
+            <PasswordForm />
           </div>
         ) : null}
       </main>

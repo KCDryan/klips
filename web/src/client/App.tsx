@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { Account } from "./pages/Account";
+import { Auth } from "./pages/Auth";
 import { Landing } from "./pages/Landing";
 import { Privacy, Terms } from "./pages/Legal";
 import { Welcome } from "./pages/Welcome";
@@ -23,6 +24,10 @@ export function App() {
 
   if (path.startsWith("/welcome")) return <Welcome />;
   if (path.startsWith("/account")) return <Account />;
+  if (path.startsWith("/login")) return <Auth key="login" mode="login" />;
+  if (path.startsWith("/signup")) return <Auth key="signup" mode="signup" />;
+  if (path.startsWith("/forgot")) return <Auth key="forgot" mode="forgot" />;
+  if (path.startsWith("/reset")) return <Auth key="reset" mode="reset" />;
   if (path.startsWith("/terms")) return <Terms />;
   if (path.startsWith("/privacy")) return <Privacy />;
   return <Landing />;

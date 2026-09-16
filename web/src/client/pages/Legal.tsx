@@ -1,5 +1,5 @@
 import { TOKENS_PER_CLIP } from "../../shared/pricing";
-import { navigate } from "../App";
+import { Link, Logo } from "../components/SiteHeader";
 
 const UPDATED = "16 September 2026";
 
@@ -8,13 +8,10 @@ function Page({ title, children }: { title: string; children: React.ReactNode })
     <div className="min-h-screen">
       <header className="border-b border-ink-800">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-5 py-4">
-          <button type="button" onClick={() => navigate("/")} className="flex items-center gap-2 font-extrabold">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-500 text-ink-950">K</span>
-            Klips
-          </button>
-          <button type="button" className="text-sm text-ink-500 hover:text-ink-100" onClick={() => navigate("/")}>
+          <Logo className="text-base" />
+          <Link to="/" className="text-sm text-ink-500 hover:text-ink-100">
             Back to klips.pro
-          </button>
+          </Link>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-5 py-12">
@@ -39,7 +36,7 @@ export function Terms() {
       <h2>What you're buying</h2>
       <p>
         A licence to use the Klips desktop app, plus tokens that let it produce clips. One finished vertical clip costs{" "}
-        {TOKENS_PER_CLIP} tokens. Your licence is for you or your business; don't share the key or resell access.
+        {TOKENS_PER_CLIP} tokens. Your licence is for you or your business; don't share your sign-in or resell access. Keep your password private; you're responsible for activity on your account.
       </p>
 
       <h2>What you need</h2>
@@ -73,7 +70,7 @@ export function Terms() {
 
       <h2>Fair use of your licence</h2>
       <p>
-        Klips runs on your machine, so we rely on the licence check being honest. Sharing keys, tampering with the app
+        Klips runs on your machine, so we rely on the licence check being honest. Sharing accounts, tampering with the app
         to skip token checks, or reselling clips as a competing service ends the licence without a refund.
       </p>
 
@@ -99,8 +96,7 @@ export function Privacy() {
 
       <h2>What we store</h2>
       <ul>
-        <li>Your email address, from checkout.</li>
-        <li>Your licence key, token balance and the history of token movements.</li>
+        <li>Your email address, a salted hash of your password (never the password itself), your token balance and the history of token movements.</li>
         <li>For each run: the video's file name, its length, how many clips you asked for, how many were delivered, the clip titles, and the name of the computer that made them.</li>
         <li>Payment records from Stripe: amounts, dates and card brand. We never see your full card number.</li>
       </ul>
@@ -114,19 +110,19 @@ export function Privacy() {
 
       <h2>Who else is involved</h2>
       <p>
-        Stripe processes payments. Cloudflare hosts this site and its database. Anthropic provides Claude through your
+        Stripe processes payments. Cloudflare hosts this site and its database. Resend delivers account emails such as password resets. Anthropic provides Claude through your
         own subscription. Each has its own privacy policy.
       </p>
 
       <h2>Your choices</h2>
       <p>
         Email support@klips.pro to get a copy of your data or to delete your account. Deleting removes your account,
-        licence keys and history; we keep payment records where tax law requires it.
+        sign-in details and history; we keep payment records where tax law requires it.
       </p>
 
       <h2>Cookies</h2>
       <p>
-        This site stores your licence key in your browser so you stay signed in. No advertising or tracking cookies.
+        This site sets one essential cookie that keeps you signed in. No advertising or tracking cookies.
       </p>
     </Page>
   );

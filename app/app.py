@@ -51,7 +51,7 @@ def set_api_key():
 
 
 def _klips_status() -> dict:
-    """Licence and token balance, as last known from klips.pro."""
+    """Signed-in account and token balance, as last known from klips.pro."""
     data = klips_cloud.load_license()
     tokens = int(data.get("tokens", 0))
     return {
@@ -70,10 +70,10 @@ def license_status():
 
 
 @app.post("/api/license")
-def license_activate():
-    key = str((request.get_json(force=True) or {}).get("key", "")).strip()
+def license_sign_in():
+    body = request.get_json(force=True) or {}
     try:
-        klips_cloud.activate(key)
+        klips_cloud.sign_in(str(body.get("email", "")), str(body.get("password", "")))
     except klips_cloud.KlipsError as e:
         return jsonify(error=str(e)), 400
     return jsonify(_klips_status())

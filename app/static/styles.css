@@ -24,7 +24,10 @@ code { background: #0003; padding: 1px 6px; border-radius: 6px; }
 .key-form { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; padding-block: 14px; }
 .key-form > div:first-child { display: grid; gap: 2px; }
 .key-form a { color: #ffe38a; }
-.key-row { display: flex; gap: 8px; flex: 1 1 320px; max-width: 480px; }
+.link-button { background: none; border: 0; color: var(--muted, #9a9aa8); font: inherit; font-size: 13px; cursor: pointer; padding: 6px 4px; }
+.link-button:hover { color: var(--text, #fff); }
+.key-row { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 360px; max-width: 600px; }
+.key-row input { min-width: 160px; }
 .key-row input { flex: 1; }
 main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 80px; }
 

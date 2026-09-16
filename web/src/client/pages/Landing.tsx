@@ -1,6 +1,6 @@
 import { TOKENS_PER_CLIP } from "../../shared/pricing";
-import { navigate } from "../App";
 import { PlanCards, TokenSlider } from "../components/Pricing";
+import { AccountButtons, Link, Logo } from "../components/SiteHeader";
 
 const STEPS = [
   {
@@ -73,16 +73,11 @@ const FAQ = [
     q: "Can I cancel a plan?",
     a: "Yes, from your account page, and you keep any tokens you've already been given. Yearly plans are paid upfront for 12 months.",
   },
+  {
+    q: "How do I sign in to the app?",
+    a: "With the same email and password as your klips.pro account. Your tokens and clip history are shared between the app and the website.",
+  },
 ];
-
-function Logo() {
-  return (
-    <button type="button" onClick={() => navigate("/")} className="flex items-center gap-2 text-lg font-extrabold">
-      <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-500 text-ink-950">K</span>
-      Klips
-    </button>
-  );
-}
 
 /** A small mock of the app's output: shared screen on top, webcam and captions below. */
 function PhoneMock() {
@@ -122,12 +117,7 @@ export function Landing() {
             <a href="#pricing" className="hover:text-ink-100">Pricing</a>
             <a href="#faq" className="hover:text-ink-100">FAQ</a>
           </nav>
-          <div className="flex items-center gap-2">
-            <button type="button" className="btn btn-ghost text-sm" onClick={() => navigate("/account")}>
-              Sign in
-            </button>
-            <a href="#pricing" className="btn btn-primary text-sm">Get tokens</a>
-          </div>
+          <AccountButtons />
         </div>
       </header>
 
@@ -228,15 +218,15 @@ export function Landing() {
           <Logo />
           <p>© {new Date().getFullYear()} Klips · klips.pro</p>
           <div className="flex flex-wrap gap-5">
-            <button type="button" onClick={() => navigate("/account")} className="hover:text-ink-100">
+            <Link to="/account" className="hover:text-ink-100">
               Your account
-            </button>
-            <button type="button" onClick={() => navigate("/terms")} className="hover:text-ink-100">
+            </Link>
+            <Link to="/terms" className="hover:text-ink-100">
               Terms
-            </button>
-            <button type="button" onClick={() => navigate("/privacy")} className="hover:text-ink-100">
+            </Link>
+            <Link to="/privacy" className="hover:text-ink-100">
               Privacy
-            </button>
+            </Link>
             <a href="mailto:support@klips.pro" className="hover:text-ink-100">Support</a>
           </div>
         </div>
