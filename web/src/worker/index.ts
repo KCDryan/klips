@@ -4,7 +4,20 @@
  * The desktop app runs on the customer's own machine; this Worker is the authority on
  * licences, token balances and the history of everything they generated.
  */
-import { PACK, PLANS, TOKENS_PER_CLIP, YEARLY_DISCOUNT, normalizePackTokens, packCents, planById, planCents, planTokens, tokensForClips } from "../shared/pricing";
+import {
+  FREE_CLIPS_PER_DAY,
+  PACK,
+  PLANS,
+  TOKENS_PER_CLIP,
+  YEARLY_DISCOUNT,
+  freeDayStart,
+  normalizePackTokens,
+  packCents,
+  planById,
+  planCents,
+  planTokens,
+  tokensForClips,
+} from "../shared/pricing";
 import {
   consumeResetToken,
   createResetToken,
@@ -27,6 +40,7 @@ import {
   type User,
   createUser,
   ensureLicense,
+  freeClipsUsedToday,
   getLicense,
   getUserByEmail,
   getUserById,
@@ -81,10 +95,21 @@ const FIFTEEN_MINUTES = 15 * 60;
 const HOUR = 60 * 60;
 const TOO_MANY = "Too many attempts. Wait 15 minutes and try again, or reset your password.";
 
+/** How many free clips are left today and when the count resets. */
+async function freeAllowance(env: Env, userId: string) {
+  const dayStart = freeDayStart(now());
+  const used = await freeClipsUsedToday(env, userId, dayStart);
+  return {
+    free_clips_per_day: FREE_CLIPS_PER_DAY,
+    free_clips_left: Math.max(0, FREE_CLIPS_PER_DAY - used),
+    free_resets_at: dayStart + 86400,
+  };
+}
+
 async function accountPayload(env: Env, user: User) {
   const [generations, ledger, subscription] = await Promise.all([
     env.DB.prepare(
-      `SELECT id, status, source_name, clips_requested, clips_delivered, tokens_charged, platform,
+      `SELECT id, status, tier, source_name, clips_requested, clips_delivered, tokens_charged, platform,
               titles, created_at, completed_at, device_name
        FROM generations WHERE user_id = ? ORDER BY created_at DESC LIMIT 50`,
     ).bind(user.id).all(),
@@ -100,6 +125,7 @@ async function accountPayload(env: Env, user: User) {
     email: user.email,
     tokens: user.tokens,
     clips_available: Math.floor(user.tokens / TOKENS_PER_CLIP),
+    ...(await freeAllowance(env, user.id)),
     has_billing: Boolean(user.stripe_customer_id),
     subscription: subscription ?? null,
     generations: (generations.results ?? []).map((row: any) => ({
@@ -174,6 +200,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   if (path === "/api/pricing" && method === "GET") {
     return json({
       tokens_per_clip: TOKENS_PER_CLIP,
+      free_clips_per_day: FREE_CLIPS_PER_DAY,
       pack: { ...PACK, cents_per_token: packCents(1) },
       yearly_discount: YEARLY_DISCOUNT,
       plans: PLANS.map((plan) => ({
@@ -230,7 +257,9 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
 
   if (path === "/api/auth/me" && method === "GET") {
     const user = await userFromSession(env, request);
-    return user ? json({ signed_in: true, email: user.email, tokens: user.tokens }) : json({ signed_in: false });
+    return user
+      ? json({ signed_in: true, email: user.email, tokens: user.tokens, ...(await freeAllowance(env, user.id)) })
+      : json({ signed_in: false });
   }
 
   if (path === "/api/auth/signup" && method === "POST") {
@@ -370,22 +399,33 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   if (path === "/api/onboarding" && method === "GET") {
     const user = await requireSession(env, request);
     if (user instanceof Response) return user;
-    const [bought, engine, clips] = await Promise.all([
+    const [bought, engine, clips, free] = await Promise.all([
       env.DB.prepare("SELECT COUNT(*) AS n FROM token_ledger WHERE user_id = ? AND reason IN ('purchase', 'subscription_grant', 'manual')")
         .bind(user.id).first<{ n: number }>(),
       env.DB.prepare("SELECT device_name, last_seen_at FROM licenses WHERE user_id = ? AND last_seen_at IS NOT NULL ORDER BY last_seen_at DESC LIMIT 1")
         .bind(user.id).first<{ device_name: string | null; last_seen_at: number }>(),
       env.DB.prepare("SELECT COALESCE(SUM(clips_delivered), 0) AS n FROM generations WHERE user_id = ? AND status = 'completed'")
         .bind(user.id).first<{ n: number }>(),
+      env.DB.prepare("SELECT 1 AS yes FROM user_flags WHERE user_id = ? AND flag = 'free_plan'").bind(user.id).first(),
     ]);
     return json({
       email: user.email,
       tokens: user.tokens,
       has_tokens: user.tokens > 0 || (bought?.n ?? 0) > 0,
+      free_plan: Boolean(free),
       engine_linked: Boolean(engine),
       engine_device: engine?.device_name ?? null,
       clips_made: clips?.n ?? 0,
     });
+  }
+
+  /** The customer chose to start on the free plan (ticks off the "free or paid" setup step). */
+  if (path === "/api/onboarding/free" && method === "POST") {
+    const user = await requireSession(env, request);
+    if (user instanceof Response) return user;
+    await env.DB.prepare("INSERT OR IGNORE INTO user_flags (user_id, flag, created_at) VALUES (?, 'free_plan', ?)")
+      .bind(user.id, now()).run();
+    return json({ ok: true });
   }
 
   // ---- account portal ----
@@ -451,14 +491,57 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     });
   }
 
-  /** Take tokens before a run starts. Unused clips are refunded when the app reports back. */
+  /**
+   * Start a run. With tokens: take 3 per clip up front; unused clips are refunded when the engine reports back.
+   * On the free plan: allow up to the day's remaining free clips, and tell the engine to watermark them.
+   * Engines before 1.4 don't send a plan and always use tokens.
+   */
   if (path === "/api/app/reserve" && method === "POST") {
     const body = await readJson(request);
     const auth = await requireLicense(env, request, body);
     if ("error" in auth) return auth.error;
     const clips = Math.max(1, Math.min(30, Math.floor(Number(body.clips) || 0)));
-    const cost = tokensForClips(clips);
     const generationId = id("gen");
+
+    if (body.plan === "free") {
+      const allowance = await freeAllowance(env, auth.user.id);
+      if (allowance.free_clips_left <= 0) {
+        return fail(
+          `You've used today's ${FREE_CLIPS_PER_DAY} free clips. They reset at midnight UTC, or use tokens for clips without a watermark.`,
+          402,
+          { ...allowance, tokens: auth.user.tokens },
+        );
+      }
+      const allowed = Math.min(clips, allowance.free_clips_left);
+      await env.DB.prepare(
+        `INSERT INTO generations (id, user_id, license_key, status, tier, source_name, source_seconds, clips_requested,
+                                  tokens_charged, platform, app_version, device_name, created_at)
+         VALUES (?, ?, ?, 'reserved', 'free', ?, ?, ?, 0, ?, ?, ?, ?)`,
+      ).bind(
+        generationId,
+        auth.user.id,
+        auth.license.key,
+        String(body.source_name || "").slice(0, 200),
+        Number(body.source_seconds) || null,
+        allowed,
+        String(body.platform || "").slice(0, 40),
+        String(body.app_version || "").slice(0, 40),
+        String(body.device_name || "").slice(0, 80),
+        now(),
+      ).run();
+      return json({
+        generation_id: generationId,
+        plan: "free",
+        watermark: true,
+        clips_allowed: allowed,
+        tokens_charged: 0,
+        tokens: auth.user.tokens,
+        free_clips_left: allowance.free_clips_left - allowed,
+        free_resets_at: allowance.free_resets_at,
+      });
+    }
+
+    const cost = tokensForClips(clips);
     const balance = await spendTokens(env, auth.user.id, cost, generationId);
     if (balance === null) {
       return fail("Not enough tokens.", 402, {
@@ -484,7 +567,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       String(body.device_name || "").slice(0, 80),
       now(),
     ).run();
-    return json({ generation_id: generationId, tokens_charged: cost, tokens: balance });
+    return json({ generation_id: generationId, plan: "tokens", watermark: false, clips_allowed: clips, tokens_charged: cost, tokens: balance });
   }
 
   /** The app reports what it actually produced; clips it couldn't make are refunded. */
@@ -498,7 +581,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     if (generation.status !== "reserved") return json({ ok: true, tokens: auth.user.tokens });
 
     const delivered = Math.max(0, Math.min(generation.clips_requested, Math.floor(Number(body.clips_delivered) || 0)));
-    const refund = tokensForClips(generation.clips_requested - delivered);
+    const refund = generation.tier === "free" ? 0 : tokensForClips(generation.clips_requested - delivered);
     const titles = Array.isArray(body.titles) ? JSON.stringify(body.titles.slice(0, 30)) : null;
     await env.DB.prepare(
       "UPDATE generations SET status = 'completed', clips_delivered = ?, tokens_charged = ?, titles = ?, completed_at = ? WHERE id = ?",

@@ -1,4 +1,4 @@
-import { TOKENS_PER_CLIP } from "../../shared/pricing";
+import { FREE_CLIPS_PER_DAY, TOKENS_PER_CLIP } from "../../shared/pricing";
 import { PlanCards, TokenSlider } from "../components/Pricing";
 import { AccountButtons, Link, Logo } from "../components/SiteHeader";
 
@@ -60,6 +60,10 @@ const FAQ = [
   {
     q: "Why do I connect my own Claude?",
     a: "Writing the clip picks, titles and descriptions is the only part that needs AI. Using your own Claude account keeps your Klips tokens cheap, and your transcripts stay between you and Anthropic.",
+  },
+  {
+    q: "Is there a free plan?",
+    a: `Yes. Every account gets ${FREE_CLIPS_PER_DAY} free clips a day with every feature, marked with a small klips.pro watermark. The count resets at midnight UTC. Paid clips have no watermark, and you can remove the watermark from any free clip later for ${TOKENS_PER_CLIP} tokens.`,
   },
   {
     q: "What does a token buy?",
@@ -143,11 +147,11 @@ export function Landing() {
               ready to post. You work in your browser; your own computer does the heavy lifting, not a rented cloud queue.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <a href="#pricing" className="btn btn-primary text-base">Start from $1</a>
+              <Link to="/signup" className="btn btn-primary text-base">Start free</Link>
               <a href="#how" className="btn btn-ghost text-base">See how it works</a>
             </div>
             <p className="mt-4 text-sm text-ink-500">
-              {TOKENS_PER_CLIP} tokens per clip · no subscription required · your footage never leaves your computer
+              {FREE_CLIPS_PER_DAY} free clips a day · no card needed · your footage never leaves your computer
             </p>
           </div>
           <PhoneMock />
@@ -190,8 +194,20 @@ export function Landing() {
         <div className="mx-auto max-w-6xl px-5 py-20">
           <h2 className="text-3xl font-bold tracking-tight md:text-4xl">Pay for clips, not seats</h2>
           <p className="mt-3 max-w-2xl text-ink-300">
-            Buy a pack of tokens whenever you need them, or take a plan if you post every week.
+            Start free with {FREE_CLIPS_PER_DAY} watermarked clips a day. Buy a pack of tokens for clips without a
+            watermark, or take a plan if you post every week.
           </p>
+          <div className="card mt-8 flex flex-wrap items-center justify-between gap-4 p-6">
+            <div>
+              <div className="text-lg font-semibold">Free</div>
+              <p className="mt-1 text-ink-300">
+                {FREE_CLIPS_PER_DAY} clips every day with a small klips.pro watermark. Every feature included, no card needed.
+              </p>
+            </div>
+            <Link to="/signup" className="btn btn-ghost">
+              Start free
+            </Link>
+          </div>
           <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
             <TokenSlider />
             <div>

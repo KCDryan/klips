@@ -9,6 +9,7 @@
     "deploy": "npm run build && wrangler deploy",
     "db:init": "wrangler d1 execute klips --local --file=./schema.sql",
     "db:init:remote": "wrangler d1 execute klips --remote --file=./schema.sql",
+    "db:migrate:free:remote": "wrangler d1 execute klips --remote --file=./migrations/0002_free_plan.sql",
     "test": "vitest run",
     "typecheck": "tsc -b --noEmit"
   },

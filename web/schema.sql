@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS generations (
   user_id        TEXT NOT NULL REFERENCES users(id),
   license_key    TEXT REFERENCES licenses(key),
   status         TEXT NOT NULL DEFAULT 'reserved',-- reserved | completed | failed | refunded
+  tier           TEXT NOT NULL DEFAULT 'tokens',  -- tokens | free (watermarked, counts toward the daily free clips)
   source_name    TEXT,                            -- file name of the uploaded video, for the customer's own reference
   source_seconds REAL,
   clips_requested INTEGER NOT NULL,
@@ -59,6 +60,7 @@ CREATE TABLE IF NOT EXISTS generations (
   completed_at   INTEGER
 );
 CREATE INDEX IF NOT EXISTS generations_user_time ON generations(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS generations_user_tier_time ON generations(user_id, tier, created_at);
 
 -- Stripe purchases: one-off token packs and subscription payments.
 CREATE TABLE IF NOT EXISTS purchases (
@@ -121,4 +123,12 @@ CREATE TABLE IF NOT EXISTS auth_attempts (
   key          TEXT PRIMARY KEY,                  -- login:<email> | ip:<address> | signup:<address>
   count        INTEGER NOT NULL,
   window_start INTEGER NOT NULL
+);
+
+-- One-off choices worth remembering across devices (e.g. "started on the free plan").
+CREATE TABLE IF NOT EXISTS user_flags (
+  user_id    TEXT NOT NULL REFERENCES users(id),
+  flag       TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, flag)
 );

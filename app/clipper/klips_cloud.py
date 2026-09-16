@@ -21,7 +21,7 @@ from .config import DATA_DIR
 API_BASE = os.environ.get("KLIPS_API", "https://klips.pro").rstrip("/")
 TOKENS_PER_CLIP = 3
 TIMEOUT = 20
-USER_AGENT = f"Klips/{os.environ.get('KLIPS_VERSION', '1.3.0')} (desktop app; +https://klips.pro)"
+USER_AGENT = f"Klips/{os.environ.get('KLIPS_VERSION', '1.4.0')} (desktop app; +https://klips.pro)"
 
 
 class KlipsError(RuntimeError):
@@ -151,8 +151,9 @@ def refresh() -> dict:
     return result
 
 
-def reserve(clips: int, source_name: str, source_seconds: float, platform_id: str, app_version: str) -> dict:
-    """Take tokens before a run. Raises KlipsError with a clear message when the balance is short."""
+def reserve(clips: int, source_name: str, source_seconds: float, platform_id: str, app_version: str,
+            plan: str = "tokens") -> dict:
+    """Start a run: take tokens, or use today's free clips (watermarked). Raises KlipsError when there aren't enough."""
     key = license_key()
     if not key:
         raise KlipsError("Sign in to your Klips account to start making clips.")
@@ -164,6 +165,7 @@ def reserve(clips: int, source_name: str, source_seconds: float, platform_id: st
         "platform": platform_id,
         "app_version": app_version,
         "device_name": device_name(),
+        "plan": "free" if plan == "free" else "tokens",
     })
 
 

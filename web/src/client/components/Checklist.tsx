@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { TOKENS_PER_CLIP } from "../../shared/pricing";
+import { FREE_CLIPS_PER_DAY, TOKENS_PER_CLIP } from "../../shared/pricing";
 import { type Onboarding, api } from "../lib/api";
 import {
   type ClaudeStatus,
@@ -226,6 +226,7 @@ export function Checklist({ compact = false }: { compact?: boolean }) {
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState("");
   const [blocked, setBlocked] = useState(false);
+  const [startingFree, setStartingFree] = useState(false);
   const [open, setOpen] = useState<StepId | null>(null);
   const linkingRef = useRef(false);
 
@@ -237,7 +238,8 @@ export function Checklist({ compact = false }: { compact?: boolean }) {
     }
   }, []);
 
-  const engineNeeded = Boolean(onboarding && onboarding.has_tokens && onboarding.clips_made === 0);
+  const planChosen = Boolean(onboarding && (onboarding.has_tokens || onboarding.free_plan || onboarding.clips_made > 0));
+  const engineNeeded = Boolean(onboarding && planChosen && onboarding.clips_made === 0);
 
   const loadEngine = useCallback(async () => {
     if (!onboarding) return;
@@ -272,6 +274,16 @@ export function Checklist({ compact = false }: { compact?: boolean }) {
     }
   }, [onboarding, loadServer]);
 
+  const startFree = async () => {
+    setStartingFree(true);
+    try {
+      await api.startFree();
+      await loadServer();
+    } finally {
+      setStartingFree(false);
+    }
+  };
+
   useEffect(() => {
     void loadServer();
     const timer = setInterval(loadServer, 6000);
@@ -303,9 +315,11 @@ export function Checklist({ compact = false }: { compact?: boolean }) {
     { id: "account", title: "Create your account", done: true, summary: onboarding.email },
     {
       id: "tokens",
-      title: "Get tokens",
-      done: onboarding.has_tokens,
-      summary: `${onboarding.tokens.toLocaleString()} tokens · about ${Math.floor(onboarding.tokens / TOKENS_PER_CLIP).toLocaleString()} clips`,
+      title: "Start free or get tokens",
+      done: planChosen,
+      summary: onboarding.has_tokens
+        ? `${onboarding.tokens.toLocaleString()} tokens · about ${Math.floor(onboarding.tokens / TOKENS_PER_CLIP).toLocaleString()} clips without a watermark`
+        : `Free plan · ${FREE_CLIPS_PER_DAY} watermarked clips a day`,
     },
     {
       id: "engine",
@@ -408,14 +422,31 @@ export function Checklist({ compact = false }: { compact?: boolean }) {
               {expanded && !step.done ? (
                 <div className="border-t border-ink-800 p-5 sm:pl-[4.75rem]">
                   {step.id === "tokens" ? (
-                    <div className="max-w-xl space-y-3">
-                      <p className="text-ink-300">
-                        Tokens pay for clips: {TOKENS_PER_CLIP} tokens per finished clip, and clips that fail are refunded.
-                      </p>
-                      <TokenSlider />
-                      <p className="text-sm text-ink-500">
-                        Posting every week? <Link to="/#pricing" className="text-brand-500 hover:underline">See monthly plans</Link>.
-                      </p>
+                    <div className="space-y-5">
+                      <div className="rounded-xl border border-ink-700 bg-ink-950 p-5">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div>
+                            <div className="font-semibold">Free plan</div>
+                            <p className="mt-1 text-sm text-ink-300">
+                              {FREE_CLIPS_PER_DAY} clips a day with a small klips.pro watermark. No card needed.
+                            </p>
+                          </div>
+                          <button type="button" className="btn btn-ghost" onClick={startFree} disabled={startingFree}>
+                            {startingFree ? <Spinner /> : null}
+                            Start free
+                          </button>
+                        </div>
+                      </div>
+                      <div className="max-w-xl space-y-3">
+                        <p className="text-ink-300">
+                          Or buy tokens for clips without a watermark: {TOKENS_PER_CLIP} tokens per finished clip, and
+                          clips that fail are refunded.
+                        </p>
+                        <TokenSlider />
+                        <p className="text-sm text-ink-500">
+                          Posting every week? <Link to="/#pricing" className="text-brand-500 hover:underline">See monthly plans</Link>.
+                        </p>
+                      </div>
                     </div>
                   ) : null}
                   {step.id === "engine" ? <EngineStep engine={engine} linking={linking} linkError={linkError} blocked={blocked} /> : null}

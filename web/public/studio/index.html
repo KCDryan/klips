@@ -155,6 +155,16 @@
           <input type="file" name="music" accept="audio/*">
         </label>      </div>
       <div class="toggles" id="home-toggles"></div>
+      <div class="plan-choice" role="radiogroup" aria-label="How to pay for these clips">
+        <label class="plan-option">
+          <input type="radio" name="plan" value="free">
+          <span><b>Free</b><small id="plan-free-text">10 clips a day · klips.pro watermark</small></span>
+        </label>
+        <label class="plan-option">
+          <input type="radio" name="plan" value="tokens">
+          <span><b>Tokens</b><small id="plan-tokens-text">No watermark · 3 tokens a clip</small></span>
+        </label>
+      </div>
       <div class="form-foot">
         <button class="primary" id="submit-job">Generate clips</button>
         <span id="token-cost" class="muted small"></span>
@@ -194,6 +204,7 @@
       </div>
       <div class="row">
         <a id="ed-download" class="button ghost" download>Download</a>
+        <button id="ed-unwatermark" class="primary" type="button" hidden>Remove watermark · 3 tokens</button>
         <button id="ed-close" class="ghost">Close</button>
       </div>
     </div>

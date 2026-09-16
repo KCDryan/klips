@@ -110,6 +110,7 @@ def render_clip(video: Path, out_path: Path, edit: dict, shots: List[dict], clip
     hook_img = cap_mod.render_hook(clip["hook"], out_w, brand) if options.get("hook_text", True) and clip.get("hook") else None
     cta_img = cap_mod.render_cta(brand["cta"], out_w, brand) if brand.get("cta") else None
     logo_img = cap_mod.load_logo(brand["logo_path"], out_w) if brand.get("logo_path") else None
+    watermark_img = cap_mod.render_watermark(out_w) if options.get("watermark") else None  # free plan
     zooms = zoom_events(edit["words"]) if options.get("zoom", True) else []
     accent = cap_mod.hex_to_rgb(brand.get("accent", "#FFD400"))[::-1]
 
@@ -168,6 +169,8 @@ def render_clip(video: Path, out_path: Path, edit: dict, shots: List[dict], clip
                     cv2.rectangle(out, (0, 0), (int(out_w * t / duration), int(10 * s)), accent, -1)
                 if logo_img is not None:
                     cap_mod.blend(out, logo_img, int(40 * s), int(40 * s), 0.9)
+                if watermark_img is not None:
+                    cap_mod.blend(out, watermark_img, out_w - watermark_img.shape[1] - int(40 * s), int(40 * s), 0.92)
                 if hook_img is not None and t < HOOK_SECONDS:
                     fade = min(1.0, (HOOK_SECONDS - t) / 0.3)
                     cap_mod.blend(out, hook_img, (out_w - hook_img.shape[1]) // 2, int(out_h * 0.13), fade)

@@ -176,6 +176,19 @@ export async function spendTokens(
   return balance;
 }
 
+/**
+ * Free clips used today (UTC): delivered clips from finished runs, plus the clips a run in progress has reserved.
+ * Failed runs don't count.
+ */
+export async function freeClipsUsedToday(env: Env, userId: string, dayStart: number): Promise<number> {
+  const row = await env.DB.prepare(
+    `SELECT COALESCE(SUM(CASE status WHEN 'completed' THEN COALESCE(clips_delivered, 0)
+                                     WHEN 'reserved' THEN clips_requested ELSE 0 END), 0) AS used
+     FROM generations WHERE user_id = ? AND tier = 'free' AND created_at >= ?`,
+  ).bind(userId, dayStart).first<{ used: number }>();
+  return row?.used ?? 0;
+}
+
 /** Give back tokens for clips that were never delivered (fewer clips than paid for, or a failed run). */
 export async function refundTokens(env: Env, userId: string, amount: number, reference: string): Promise<number | null> {
   if (amount <= 0) return null;

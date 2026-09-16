@@ -4,6 +4,15 @@
  */
 
 export const TOKENS_PER_CLIP = 3;
+
+/** Free plan: this many watermarked clips per account per day (the day resets at midnight UTC). */
+export const FREE_CLIPS_PER_DAY = 10;
+
+/** Start of the current free-plan day, in seconds since the epoch (midnight UTC). */
+export function freeDayStart(nowSeconds: number): number {
+  return nowSeconds - (nowSeconds % 86400);
+}
+
 export const CENTS_PER_TOKEN = 10;
 
 /** One-off token packs: the slider on the pricing page. */

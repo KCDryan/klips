@@ -228,6 +228,7 @@ def create_job():
         "whisper": f.get("whisper") if f.get("whisper") in ("tiny", "base", "small", "medium", "large-v3") else d["whisper"],
         "language": f.get("language") or None,
         "music_volume": max(0.0, min(1.0, float(f.get("music_volume", d["music_volume"])))),
+        "plan": "free" if f.get("plan") == "free" else "tokens",  # free: watermarked, counts toward 10 a day
     }
     for key in ("captions", "hook_text", "remove_fillers", "cold_open", "zoom", "emoji", "progress_bar"):
         options[key] = _bool(f.get(key), default=False)
@@ -275,12 +276,11 @@ def delete_job(job_id):
 
 @app.post("/api/jobs/<job_id>/retry")
 def retry_job(job_id):
-    job = _job_or_404(job_id)
-    if job["status"] == "error":
-        store.update_job(job_id, status="queued", stage="Queued", error=None)
-    for clip in job["clips"]:
-        if clip["status"] == "error":
-            store.update_clip(job_id, clip["idx"], status="queued", error=None)
+    _job_or_404(job_id)
+    try:
+        pipeline.retry(job_id)
+    except klips_cloud.KlipsError as e:
+        return jsonify(error=str(e)), 400
     pipeline.start_worker()
     return jsonify(ok=True)
 
@@ -318,6 +318,17 @@ def edit_clip(job_id, idx):
     try:
         clip = pipeline.apply_clip_edits(job_id, idx, request.get_json(force=True) or {})
     except ValueError as e:
+        return jsonify(error=str(e)), 400
+    pipeline.start_worker()
+    return jsonify(clip)
+
+
+@app.post("/api/jobs/<job_id>/clips/<int:idx>/remove-watermark")
+def remove_watermark(job_id, idx):
+    _job_or_404(job_id)
+    try:
+        clip = pipeline.remove_watermark(job_id, idx)
+    except (ValueError, klips_cloud.KlipsError) as e:
         return jsonify(error=str(e)), 400
     pipeline.start_worker()
     return jsonify(clip)

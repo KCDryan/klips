@@ -19,7 +19,7 @@ from . import klips_cloud, media, picker, reframe, render, speaker, store
 from .config import DATA_DIR
 from .transcribe import transcribe
 
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 ECHO = False  # the CLI turns this on to print progress
 ANALYSIS_PAD = 3.0  # seconds of extra analysis around each clip so small in/out edits reuse the cache
 # Clips rendered at the same time. Each render uses about 2-3 cores (decode, compositing, encode).
@@ -165,6 +165,7 @@ def render_one(job_id: str, idx: int, progress: Callable[[float], None] = lambda
     job = store.get_job(job_id, with_clips=False)
     clip = store.get_clip(job_id, idx)
     options = {**DEFAULT_OPTIONS, **job["options"], **(clip.get("overrides") or {})}
+    options["watermark"] = bool(job["options"].get("watermark")) and not clip.get("watermark_removed")
     words = load_words(job_id, options)
     clip_words = words[clip["i0"]: clip["i1"] + 1]
     rel = _relative(clip)
@@ -222,19 +223,22 @@ def render_with_status(job_id: str, idx: int, on_progress: Callable[[float], Non
     try:
         render_one(job_id, idx, progress)
         store.update_clip(job_id, idx, status="done", progress=1.0)
+        _settle_clip_charge(job_id, idx)
     except Exception as e:
         traceback.print_exc()
         store.update_clip(job_id, idx, status="error", error=str(e))
         _log(job_id, f"Clip {idx + 1} failed: {e}")
+        _settle_clip_charge(job_id, idx, error=str(e))
 
 
 # ---------- tokens ----------
 
-def _reserve_tokens(job_id: str, options: dict, clips: int) -> None:
-    """Take tokens for this run (3 per clip). Resuming a job that already paid doesn't charge again."""
+def _reserve_tokens(job_id: str, options: dict, clips: int) -> int:
+    """Take tokens for this run (3 per clip), or use today's free clips (watermarked).
+    Returns how many clips to make. Resuming a job that already started doesn't charge again."""
     job = store.get_job(job_id, with_clips=False)
     if job["options"].get("generation_id"):
-        return
+        return int(job["options"].get("clips_allowed") or clips)
     duration = 0.0
     try:
         duration = media.probe(source_path(job_id)).get("duration", 0.0)
@@ -246,9 +250,22 @@ def _reserve_tokens(job_id: str, options: dict, clips: int) -> None:
         source_seconds=duration,
         platform_id=options.get("platform", ""),
         app_version=APP_VERSION,
+        plan=options.get("plan", "tokens"),
     )
-    store.update_job(job_id, options={**job["options"], "generation_id": result["generation_id"]})
-    _log(job_id, f"{result['tokens_charged']} tokens used · {result['tokens']} left on your account")
+    allowed = max(1, min(clips, int(result.get("clips_allowed") or clips)))
+    store.update_job(job_id, options={
+        **job["options"],
+        "generation_id": result["generation_id"],
+        "watermark": bool(result.get("watermark")),
+        "clips_allowed": allowed,
+    })
+    if result.get("plan") == "free":
+        if allowed < clips:
+            _log(job_id, f"Free plan: making your top {allowed} of {clips} clips (that's all the free clips left today)")
+        _log(job_id, f"Free plan: {allowed} watermarked clips · {result.get('free_clips_left', 0)} free clips left today")
+    else:
+        _log(job_id, f"{result['tokens_charged']} tokens used · {result['tokens']} left on your account")
+    return allowed
 
 
 def _settle_tokens(job_id: str, error: Optional[str] = None) -> None:
@@ -268,6 +285,88 @@ def _settle_tokens(job_id: str, error: Optional[str] = None) -> None:
         store.update_job(job_id, options={**job["options"], "generation_settled": True})
     except klips_cloud.KlipsError as e:
         _log(job_id, f"Couldn't update your Klips balance: {e}")
+
+
+def _clip_data(clip: dict) -> dict:
+    return {k: v for k, v in clip.items() if k not in ("idx", "status", "progress", "error", "updated")}
+
+
+def remove_watermark(job_id: str, idx: int) -> dict:
+    """Unlock one free clip: take 3 tokens and re-render it without the watermark (refunded if the render fails)."""
+    job = store.get_job(job_id, with_clips=False)
+    clip = store.get_clip(job_id, idx)
+    if not job["options"].get("watermark") or clip.get("watermark_removed"):
+        raise ValueError("This clip doesn't have a watermark.")
+    if job["status"] != "done" or clip["status"] != "done":
+        raise ValueError("Wait for this clip to finish first.")
+    result = klips_cloud.reserve(
+        clips=1,
+        source_name=f"Remove watermark: {clip.get('title', '')}"[:200],
+        source_seconds=0,
+        platform_id=job["options"].get("platform", ""),
+        app_version=APP_VERSION,
+        plan="tokens",
+    )
+    data = _clip_data(clip)
+    data.update(watermark_removed=True, charge_generation=result["generation_id"], charge_kind="watermark")
+    store.update_clip(job_id, idx, data=data, status="queued", progress=0.0, error=None)
+    _log(job_id, f"Removing the watermark from clip {idx + 1}: {result['tokens_charged']} tokens used")
+    return store.get_clip(job_id, idx)
+
+
+def retry(job_id: str) -> None:
+    """Retry a failed project or failed clips. Anything that was refunded is charged again (or uses free clips)."""
+    job = store.get_job(job_id, with_clips=True)
+    options = job["options"]
+    if job["status"] == "error":
+        if options.get("generation_settled"):  # the failed run was refunded: start a fresh reservation
+            options = {k: v for k, v in options.items()
+                       if k not in ("generation_id", "generation_settled", "clips_allowed", "watermark")}
+        store.update_job(job_id, options=options, status="queued", stage="Queued", error=None)
+        return
+    failed = [c for c in job["clips"] if c["status"] == "error"]
+    if not failed:
+        return
+    if not options.get("generation_settled"):
+        for clip in failed:
+            store.update_clip(job_id, clip["idx"], status="queued", error=None)
+        return
+    plan = "free" if options.get("watermark") else "tokens"
+    for clip in failed:  # these were refunded when the project finished
+        result = klips_cloud.reserve(
+            clips=1,
+            source_name=f"Retry: {clip.get('title', '')}"[:200],
+            source_seconds=0,
+            platform_id=options.get("platform", ""),
+            app_version=APP_VERSION,
+            plan=plan,
+        )
+        data = _clip_data(clip)
+        data.update(charge_generation=result["generation_id"], charge_kind="retry")
+        store.update_clip(job_id, clip["idx"], data=data, status="queued", error=None)
+
+
+def _settle_clip_charge(job_id: str, idx: int, error: Optional[str] = None) -> None:
+    """Finish the charge for a single-clip render (removing a watermark or retrying a refunded clip)."""
+    clip = store.get_clip(job_id, idx)
+    generation_id = clip.get("charge_generation")
+    if not generation_id:
+        return
+    data = _clip_data(clip)
+    kind = data.pop("charge_kind", "")
+    data.pop("charge_generation", None)
+    try:
+        if error:
+            klips_cloud.failed(generation_id, error)
+            if kind == "watermark":
+                data["watermark_removed"] = False  # refunded, so the clip keeps its watermark
+                _log(job_id, f"Clip {idx + 1}: couldn't remove the watermark, so it wasn't charged")
+        else:
+            klips_cloud.complete(generation_id, 1, [clip.get("title", "")])
+    except klips_cloud.KlipsError as e:
+        _log(job_id, f"Couldn't update your Klips balance: {e}")
+        return
+    store.update_clip(job_id, idx, data=data)
 
 
 # ---------- full job ----------
@@ -305,7 +404,7 @@ def run_job(job_id: str) -> None:
             raise RuntimeError("Claude didn't find any strong clip-worthy moments. Try a wider clip length or no topic filter.")
 
         stage("Checking your tokens", 0.52)
-        _reserve_tokens(job_id, options, len(clips))
+        clips = clips[:_reserve_tokens(job_id, options, len(clips))]
 
         existing = {c["idx"]: c for c in store.list_clips(job_id)}
         for idx, c in enumerate(clips):

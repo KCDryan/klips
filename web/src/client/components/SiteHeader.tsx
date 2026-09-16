@@ -73,7 +73,7 @@ export function AccountButtons() {
         Sign in
       </Link>
       <Link to="/signup" className="btn btn-primary text-sm">
-        Create account
+        Start free
       </Link>
     </div>
   );

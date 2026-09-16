@@ -1,4 +1,4 @@
-import { TOKENS_PER_CLIP } from "../../shared/pricing";
+import { FREE_CLIPS_PER_DAY, TOKENS_PER_CLIP } from "../../shared/pricing";
 import { Link, Logo } from "../components/SiteHeader";
 
 const UPDATED = "16 September 2026";
@@ -35,7 +35,7 @@ export function Terms() {
 
       <h2>What you're buying</h2>
       <p>
-        A licence to use the Klips desktop app, plus tokens that let it produce clips. One finished vertical clip costs{" "}
+        Use of Klips Studio and Klips Engine, a free daily allowance of watermarked clips, and tokens for clips without a watermark. One finished vertical clip costs{" "}
         {TOKENS_PER_CLIP} tokens. Your licence is for you or your business; don't share your sign-in or resell access. Keep your password private; you're responsible for activity on your account.
       </p>
 
@@ -52,6 +52,14 @@ export function Terms() {
         <li>Plan tokens are added at the start of each billing period and roll over while the plan is active.</li>
         <li>You're charged when a run starts and refunded for any clip that doesn't finish.</li>
         <li>Tokens have no cash value and can't be transferred between accounts.</li>
+      </ul>
+
+      <h2>Free plan</h2>
+      <ul>
+        <li>Every account can make {FREE_CLIPS_PER_DAY} free clips a day. The count resets at midnight UTC.</li>
+        <li>Free clips carry a klips.pro watermark. Removing, covering or cropping it by any means other than paying to remove it breaks these terms.</li>
+        <li>One account per person. We may limit or close accounts created to get around the daily limit.</li>
+        <li>We can change or end the free plan at any time; clips you've already made are yours to keep.</li>
       </ul>
 
       <h2>Refunds</h2>

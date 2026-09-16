@@ -172,12 +172,15 @@ export function Account() {
           <Stat label="Clips made" value={totalClips.toLocaleString()} sub={`${data.generations.length} videos processed`} />
           <Stat
             label="Plan"
-            value={plan ? plan.name : "Pay as you go"}
+            value={plan ? plan.name : data.tokens > 0 ? "Pay as you go" : "Free"}
             sub={
-              data.subscription
+              (data.subscription
                 ? `${data.subscription.tokens_per_period.toLocaleString()} tokens per ${data.subscription.interval}` +
                   (data.subscription.cancel_at_period_end ? " · ends at period end" : "")
-                : "Tokens never expire"
+                : data.tokens > 0
+                  ? "Tokens never expire"
+                  : "Buy tokens to remove the watermark") +
+              ` · ${data.free_clips_left} of ${data.free_clips_per_day} free clips left today`
             }
           />
         </div>
@@ -252,12 +255,14 @@ export function Account() {
                       }
                     >
                       {generation.status === "completed"
-                        ? `${generation.clips_delivered ?? 0} clips`
+                        ? `${generation.clips_delivered ?? 0} clips${generation.tier === "free" ? " · free" : ""}`
                         : generation.status === "failed"
                           ? "Failed · refunded"
                           : "In progress"}
                     </div>
-                    <div className="text-ink-500">{generation.tokens_charged} tokens</div>
+                    <div className="text-ink-500">
+                      {generation.tier === "free" ? "Watermarked" : `${generation.tokens_charged} tokens`}
+                    </div>
                   </div>
                 </div>
                 {generation.titles.length ? (

@@ -169,9 +169,15 @@ function setupUpload() {
     if (CLAUDE && CLAUDE.backend === "claude-code" && !CLAUDE.ready) {
       return toast("Connect Claude Code first (the steps at the top).", 6000);
     }
-    const needed = tokenCost($("#new-job").clips.value);
-    if (needed > LICENSE.tokens) {
-      return toast(`That needs ${needed} tokens and you have ${LICENSE.tokens}. Buy more on your account page.`, 7000);
+    if (selectedPlan() === "free") {
+      if (!ACCOUNT || (ACCOUNT.free_clips_left ?? 0) <= 0) {
+        return toast(`You've used today's free clips. Choose Tokens, or come back at ${resetTime()}.`, 7000);
+      }
+    } else {
+      const needed = tokenCost($("#new-job").clips.value);
+      if (needed > LICENSE.tokens) {
+        return toast(`That needs ${needed} tokens and you have ${LICENSE.tokens}. Buy more on your account page, or choose Free.`, 7000);
+      }
     }
     const button = $("#submit-job");
     const status = $("#upload-status");
@@ -185,11 +191,14 @@ function setupUpload() {
       let data = {};
       try { data = JSON.parse(xhr.responseText || "{}"); } catch { /* not JSON */ }
       if (xhr.status !== 200) return toast(data.error || "Upload failed");
+      const plan = selectedPlan();
       form.reset();
+      form.querySelector(`input[name="plan"][value="${plan}"]`).checked = true;
       renderToggles($("#home-toggles"), META.defaults);
       label();
       location.hash = `#/job/${data.id}`;
-      setTimeout(refreshTokens, 4000); // tokens are reserved once the clips are planned
+      setTimeout(refreshTokens, 4000); // tokens or free clips are reserved once the clips are planned
+      setTimeout(refreshTokens, 60000);
     };
     xhr.onerror = () => { button.disabled = false; status.textContent = ""; toast("Upload failed. Is Klips Engine still running?", 6000); };
     xhr.send(new FormData(form));
@@ -253,6 +262,7 @@ function renderClips(job) {
     card.querySelector(".badge").textContent = clip.virality_score;
     card.querySelector("h4").textContent = clip.title;
     const bits = [];
+    if (job.options.watermark && !clip.watermark_removed) bits.push("watermarked");
     if (clip.duration) bits.push(`${Math.round(clip.duration)}s`);
     if (clip.layouts) bits.push(clip.layouts.join(" + "));
     card.querySelector(".info").textContent = bits.join(" · ") || `${fmtTime(clip.start)} – ${fmtTime(clip.end)}`;
@@ -280,9 +290,14 @@ function setupJobActions() {
     } catch (e) { toast(e.message); }
   });
   $("#job-retry").addEventListener("click", async () => {
-    await api(`/api/jobs/${currentJob.id}/retry`, { method: "POST" });
-    toast("Retrying…");
-    showJob(currentJob.id);
+    try {
+      await api(`/api/jobs/${currentJob.id}/retry`, { method: "POST" });
+      toast("Retrying…");
+      refreshTokens();
+      showJob(currentJob.id);
+    } catch (e) {
+      toast(e.message, 6000);
+    }
   });
 }
 
@@ -339,8 +354,36 @@ const editor = {
     this.syncBusy(clip);
   },
 
+  renderWatermark() {
+    const { job, clip } = this;
+    const button = $("#ed-unwatermark");
+    button.hidden = !(job.options.watermark && !clip.watermark_removed && clip.status === "done");
+  },
+
+  async removeWatermark() {
+    const button = $("#ed-unwatermark");
+    if (LICENSE.tokens < 3) {
+      toast("Removing a watermark takes 3 tokens. Buy tokens on your account page.", 6000);
+      return;
+    }
+    button.disabled = true;
+    try {
+      this.clip = await api(`/api/jobs/${this.job.id}/clips/${this.clip.idx}/remove-watermark`, { method: "POST" });
+      this.syncBusy(this.clip);
+      this.renderWatermark();
+      toast("Removing the watermark. The clip re-renders in a moment.");
+      refreshTokens();
+      showJob(this.job.id);
+    } catch (e) {
+      toast(e.message, 6000);
+    } finally {
+      button.disabled = false;
+    }
+  },
+
   loadVideo() {
     const { job, clip } = this;
+    this.renderWatermark();
     const video = $("#ed-video");
     const platform = (clip.overrides && clip.overrides.platform) || job.options.platform;
     $("#ed-phone").classList.toggle("landscape45", platform === "linkedin");
@@ -548,6 +591,7 @@ const editor = {
     const wasBusy = this.clip.status === "queued" || this.clip.status === "rendering";
     this.clip = { ...fresh };
     this.syncBusy(fresh);
+    this.renderWatermark();
     if (fresh.status === "done" && (fresh.version || 0) !== this.seenVersion) {
       this.seenVersion = fresh.version || 0;
       this.loadVideo();
@@ -571,6 +615,7 @@ function setupEditor() {
   $("#ed-close").addEventListener("click", () => editor.close());
   $("#editor").addEventListener("cancel", (e) => { e.preventDefault(); editor.close(); });
   $("#ed-render").addEventListener("click", () => editor.render());
+  $("#ed-unwatermark").addEventListener("click", () => editor.removeWatermark());
   for (const id of ["#ed-title", "#ed-hook", "#ed-platform", "#ed-preset", "#ed-toggles"]) {
     $(id).addEventListener("change", () => editor.setDirty(true));
     $(id).addEventListener("input", () => editor.setDirty(true));
@@ -631,6 +676,38 @@ function renderLicense() {
   updateCostLine();
 }
 
+const FREE_PLAN_KEY = "klips.plan";
+
+function selectedPlan() {
+  const checked = document.querySelector('#new-job input[name="plan"]:checked');
+  return checked ? checked.value : "tokens";
+}
+
+function resetTime() {
+  if (!ACCOUNT || !ACCOUNT.free_resets_at) return "midnight UTC";
+  return new Date(ACCOUNT.free_resets_at * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+/** Pick Free or Tokens: remember the customer's choice, otherwise use tokens when they have enough. */
+function renderPlanChoice() {
+  const form = $("#new-job");
+  const freeLeft = ACCOUNT ? ACCOUNT.free_clips_left ?? 0 : 0;
+  const perDay = ACCOUNT ? ACCOUNT.free_clips_per_day || 10 : 10;
+  $("#plan-free-text").textContent = freeLeft > 0
+    ? `${freeLeft} of ${perDay} free clips left today · klips.pro watermark`
+    : `Today's ${perDay} free clips are used · more at ${resetTime()}`;
+  $("#plan-free-text").closest(".plan-option").classList.toggle("empty", freeLeft <= 0);
+  $("#plan-tokens-text").textContent = `No watermark · 3 tokens a clip · ${LICENSE.tokens.toLocaleString()} tokens`;
+  if (!form.querySelector('input[name="plan"]:checked')) {
+    let saved = "";
+    try { saved = localStorage.getItem(FREE_PLAN_KEY) || ""; } catch { /* storage blocked */ }
+    const clips = Number(form.clips.value) || 0;
+    const plan = saved || (LICENSE.tokens >= tokenCost(clips) ? "tokens" : "free");
+    const input = form.querySelector(`input[name="plan"][value="${plan}"]`);
+    if (input) input.checked = true;
+  }
+}
+
 function updateCostLine() {
   const line = $("#token-cost");
   if (!line) return;
@@ -641,9 +718,21 @@ function updateCostLine() {
     line.classList.remove("short");
     return;
   }
+  renderPlanChoice();
+  if (selectedPlan() === "free") {
+    const freeLeft = ACCOUNT ? ACCOUNT.free_clips_left ?? 0 : 0;
+    const short = freeLeft <= 0;
+    line.textContent = short
+      ? `No free clips left today. Use tokens, or come back at ${resetTime()}.`
+      : clips > freeLeft
+        ? `Free plan: your top ${freeLeft} of ${clips} clips, with a klips.pro watermark`
+        : `Free plan: ${clips} clips with a klips.pro watermark`;
+    line.classList.toggle("short", short);
+    return;
+  }
   const short = cost > LICENSE.tokens;
   line.textContent = short
-    ? `${clips} clips need ${cost} tokens — you have ${LICENSE.tokens}. Buy more on your account page.`
+    ? `${clips} clips need ${cost} tokens — you have ${LICENSE.tokens}. Buy more on your account page, or choose Free.`
     : `${clips} clips = ${cost} tokens · ${LICENSE.tokens.toLocaleString()} available`;
   line.classList.toggle("short", short);
 }
@@ -684,7 +773,14 @@ async function linkEngine() {
 }
 
 function setupLicense() {
-  $("#new-job").clips.addEventListener("input", updateCostLine);
+  const form = $("#new-job");
+  form.clips.addEventListener("input", updateCostLine);
+  for (const input of form.querySelectorAll('input[name="plan"]')) {
+    input.addEventListener("change", () => {
+      try { localStorage.setItem(FREE_PLAN_KEY, input.value); } catch { /* storage blocked */ }
+      updateCostLine();
+    });
+  }
 }
 
 // ---------- Klips Engine connection ----------

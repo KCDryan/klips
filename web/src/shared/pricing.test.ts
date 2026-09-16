@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  FREE_CLIPS_PER_DAY,
+  freeDayStart,
   PACK,
   TOKENS_PER_CLIP,
   YEARLY_DISCOUNT,
@@ -77,5 +79,18 @@ describe("formatting", () => {
     expect(formatUsd(1_000)).toBe("$10");
     expect(formatUsd(9_600)).toBe("$96");
     expect(formatUsd(2_850)).toBe("$28.50");
+  });
+});
+
+describe("free plan", () => {
+  it("gives 10 clips a day", () => {
+    expect(FREE_CLIPS_PER_DAY).toBe(10);
+  });
+
+  it("starts each free day at midnight UTC", () => {
+    const noonUtc = Date.UTC(2026, 8, 16, 12, 0, 0) / 1000;
+    expect(freeDayStart(noonUtc)).toBe(Date.UTC(2026, 8, 16) / 1000);
+    expect(freeDayStart(Date.UTC(2026, 8, 17) / 1000)).toBe(Date.UTC(2026, 8, 17) / 1000);
+    expect(freeDayStart(Date.UTC(2026, 8, 17) / 1000 - 1)).toBe(Date.UTC(2026, 8, 16) / 1000);
   });
 });

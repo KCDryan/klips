@@ -179,3 +179,14 @@ a.chip { text-decoration: none; }
 a.button.primary { background: var(--accent); color: #000; border-color: var(--accent); }
 .banner a { color: #ffe38a; margin-left: 6px; }
 .engine-note.blocked { color: var(--danger); }
+
+/* Free plan or tokens */
+.plan-choice { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 16px; }
+.plan-option { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #0e0e12; cursor: pointer; color: var(--text); }
+.plan-option:hover { border-color: #444452; }
+.plan-option:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.plan-option input { width: auto; accent-color: var(--accent); }
+.plan-option span { display: grid; gap: 1px; }
+.plan-option small { color: var(--muted); font-size: 12.5px; }
+.plan-option.empty small { color: var(--danger); }
+.wm-tag { color: var(--accent); }

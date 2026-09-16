@@ -242,6 +242,27 @@ def render_cta(text: str, out_w: int, brand: Optional[dict] = None) -> np.ndarra
     return _pill(text, brand.get("font") or "Arial Black", int(52 * s), int(out_w * 0.7), bg, fg, int(60 * s))
 
 
+@lru_cache(maxsize=8)
+def render_watermark(out_w: int) -> np.ndarray:
+    """The free-plan watermark: the Klips mark and "klips.pro" on a dark pill."""
+    s = out_w / 1080
+    height = max(24, int(84 * s))
+    pad = int(height * 0.16)
+    mark = height - 2 * pad
+    gap = int(14 * s)
+    text_font = load_font("Arial Black", int(height * 0.42))
+    mark_font = load_font("Arial Black", int(mark * 0.66))
+    text = "klips.pro"
+    width = pad + mark + gap + int(text_font.getlength(text)) + int(pad * 1.8)
+    img = Image.new("RGBA", (width, height))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((0, 0, width - 1, height - 1), radius=height // 2, fill=(0, 0, 0, 165))
+    d.rounded_rectangle((pad, pad, pad + mark, pad + mark), radius=int(mark * 0.28), fill=(255, 212, 0, 255))
+    d.text((pad + mark / 2, pad + mark / 2), "K", font=mark_font, anchor="mm", fill=BLACK + (255,))
+    d.text((pad + mark + gap, height / 2), text, font=text_font, anchor="lm", fill=WHITE + (255,))
+    return np.array(img)
+
+
 def load_logo(path: str, out_w: int) -> Optional[np.ndarray]:
     try:
         img = Image.open(path).convert("RGBA")

@@ -26,6 +26,7 @@ const post = <T>(path: string, body: unknown = {}) => request<T>(path, { method:
 export interface Generation {
   id: string;
   status: string;
+  tier: "tokens" | "free";
   source_name: string | null;
   clips_requested: number;
   clips_delivered: number | null;
@@ -53,7 +54,13 @@ export interface Subscription {
   cancel_at_period_end: number;
 }
 
-export interface Account {
+export interface FreeAllowance {
+  free_clips_per_day: number;
+  free_clips_left: number;
+  free_resets_at: number;
+}
+
+export interface Account extends FreeAllowance {
   email: string;
   tokens: number;
   clips_available: number;
@@ -67,12 +74,13 @@ export interface Onboarding {
   email: string;
   tokens: number;
   has_tokens: boolean;
+  free_plan: boolean;
   engine_linked: boolean;
   engine_device: string | null;
   clips_made: number;
 }
 
-export interface Me {
+export interface Me extends Partial<FreeAllowance> {
   signed_in: boolean;
   email?: string;
   tokens?: number;
@@ -92,6 +100,7 @@ export const api = {
   account: () => request<Account>("/api/account"),
   onboarding: () => request<Onboarding>("/api/onboarding"),
   engineLink: () => post<{ app_key: string; email: string }>("/api/engine/link"),
+  startFree: () => post<{ ok: true }>("/api/onboarding/free"),
   billingPortal: () => post<{ url: string }>("/api/account/portal"),
 
   buyTokens: (tokens: number) => post<{ url: string }>("/api/checkout/pack", { tokens }),
