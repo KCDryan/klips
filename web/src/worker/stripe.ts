@@ -133,6 +133,7 @@ async function recordPurchase(
     fields.tokens,
     fields.amountCents,
     fields.currency,
+    now(),
   ).run();
 }
 
