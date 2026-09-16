@@ -80,6 +80,13 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   const path = url.pathname;
   const method = request.method;
 
+  // Download links on the site point here, so the installer URLs can change without a redeploy of the pages.
+  if (path.startsWith("/download/")) {
+    const target = path.endsWith("/windows") ? env.DOWNLOAD_WINDOWS_URL : env.DOWNLOAD_MAC_URL;
+    if (!target) return new Response("Downloads aren't published yet.", { status: 503 });
+    return Response.redirect(target, 302);
+  }
+
   // ---- public ----
 
   if (path === "/api/pricing" && method === "GET") {
@@ -251,8 +258,9 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    if (!url.pathname.startsWith("/api/")) {
-      return new Response("Not found", { status: 404 }); // static assets are served before the Worker
+    // Everything else is a static page, served before the Worker ever runs.
+    if (!url.pathname.startsWith("/api/") && !url.pathname.startsWith("/download/")) {
+      return new Response("Not found", { status: 404 });
     }
     if (request.method === "OPTIONS") {
       return new Response(null, {

@@ -10,7 +10,7 @@
   "assets": {
     "directory": "./dist/client",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/api/*", "/download/*"]
   },
 
   // Create with:  npx wrangler d1 create klips     then paste the id below.
@@ -23,7 +23,10 @@
   ],
 
   "vars": {
-    "SITE_URL": "https://klips.pro"
+    "SITE_URL": "https://klips.pro",
+    // Point these at the installers once the first release is published on GitHub.
+    "DOWNLOAD_MAC_URL": "https://github.com/YOUR_GITHUB_USERNAME/klips/releases/latest/download/Klips-mac.dmg",
+    "DOWNLOAD_WINDOWS_URL": "https://github.com/YOUR_GITHUB_USERNAME/klips/releases/latest/download/Klips-windows.exe"
   }
 
   // Secrets (set with `npx wrangler secret put NAME`, never committed):

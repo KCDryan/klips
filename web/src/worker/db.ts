@@ -5,6 +5,8 @@ export interface Env {
   SITE_URL: string;
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
+  DOWNLOAD_MAC_URL: string;
+  DOWNLOAD_WINDOWS_URL: string;
 }
 
 export interface User {
