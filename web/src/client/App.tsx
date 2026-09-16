@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { Account } from "./pages/Account";
 import { Landing } from "./pages/Landing";
+import { Privacy, Terms } from "./pages/Legal";
 import { Welcome } from "./pages/Welcome";
 
 /** Minimal router: the Worker serves index.html for every page, so we read the path here. */
@@ -22,5 +23,7 @@ export function App() {
 
   if (path.startsWith("/welcome")) return <Welcome />;
   if (path.startsWith("/account")) return <Account />;
+  if (path.startsWith("/terms")) return <Terms />;
+  if (path.startsWith("/privacy")) return <Privacy />;
   return <Landing />;
 }

@@ -84,7 +84,9 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   if (path.startsWith("/download/")) {
     const target = path.endsWith("/windows") ? env.DOWNLOAD_WINDOWS_URL : env.DOWNLOAD_MAC_URL;
     if (!target) return new Response("Downloads aren't published yet.", { status: 503 });
-    return Response.redirect(target, 302);
+    // Built by hand rather than Response.redirect: that returns an immutable response, and the
+    // CORS header added further down would throw on it.
+    return new Response(null, { status: 302, headers: { location: target } });
   }
 
   // ---- public ----

@@ -227,9 +227,15 @@ export function Landing() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-10 text-sm text-ink-500">
           <Logo />
           <p>© {new Date().getFullYear()} Klips · klips.pro</p>
-          <div className="flex gap-5">
+          <div className="flex flex-wrap gap-5">
             <button type="button" onClick={() => navigate("/account")} className="hover:text-ink-100">
               Your account
+            </button>
+            <button type="button" onClick={() => navigate("/terms")} className="hover:text-ink-100">
+              Terms
+            </button>
+            <button type="button" onClick={() => navigate("/privacy")} className="hover:text-ink-100">
+              Privacy
             </button>
             <a href="mailto:support@klips.pro" className="hover:text-ink-100">Support</a>
           </div>
