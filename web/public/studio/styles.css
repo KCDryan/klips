@@ -163,3 +163,18 @@ dialog::backdrop { background: #000c; }
 
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--panel-2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; z-index: 50; box-shadow: 0 10px 30px #0008; }
 .empty { border: 1px dashed var(--line); border-radius: var(--radius); padding: 24px; text-align: center; color: var(--muted); }
+
+/* Studio on klips.pro: engine connection */
+.logo-sub { color: var(--muted); font-weight: 600; }
+.nav-link { text-decoration: none; color: var(--muted); }
+.nav-link:hover, .top nav a:hover { color: var(--text); }
+a.chip { text-decoration: none; }
+.boot { min-height: 60vh; display: grid; place-content: center; justify-items: center; gap: 14px; }
+.engine-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); background: none; border: 0; padding: 6px 4px; }
+.engine-chip:hover { color: var(--text); }
+.engine-chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px #3ddc8433; }
+.engine-chip.off i { background: var(--danger); box-shadow: 0 0 0 3px #ff5c5c33; }
+.looking { white-space: nowrap; }
+.engine-note { margin: 14px 2px 0; }
+a.button.primary { background: var(--accent); color: #000; border-color: var(--accent); }
+.banner a { color: #ffe38a; margin-left: 6px; }

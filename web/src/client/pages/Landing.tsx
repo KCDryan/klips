@@ -4,20 +4,20 @@ import { AccountButtons, Link, Logo } from "../components/SiteHeader";
 
 const STEPS = [
   {
-    title: "Install Klips",
-    body: "One download for Mac or Windows. It sets itself up the first time you open it.",
+    title: "Create your account",
+    body: "Sign up, pick your tokens, and a checklist walks you through the rest.",
+  },
+  {
+    title: "Add Klips Engine",
+    body: "A one-time install that runs quietly in the background, so your own computer does the video work.",
   },
   {
     title: "Connect your Claude Code",
-    body: "Klips uses the Claude subscription you already pay for. Sign in once and you're done.",
+    body: "Klips uses the Claude subscription you already pay for. Two clicks from the checklist.",
   },
   {
-    title: "Drop in a long video",
-    body: "A podcast, interview, webinar or Zoom call. Your file stays on your computer.",
-  },
-  {
-    title: "Get posting-ready clips",
-    body: "Vertical, captioned, with titles, descriptions and hashtags written for each clip.",
+    title: "Clip in your browser",
+    body: "Open Klips Studio, drop in a long video, and edit, download and post your clips right there.",
   },
 ];
 
@@ -51,7 +51,11 @@ const FEATURES = [
 const FAQ = [
   {
     q: "What do I need to run Klips?",
-    a: "A Mac or Windows computer and a Claude subscription with Claude Code. Klips does the video work on your own machine, so nothing uploads and there are no cloud processing fees.",
+    a: "Chrome or Edge on a Mac or Windows computer, plus a Claude Pro or Max subscription. You use Klips in your browser; the video work runs on your own computer, so nothing uploads to the cloud and there are no cloud processing fees.",
+  },
+  {
+    q: "Do I have to download anything?",
+    a: "Just once: Klips Engine, a small background helper that lets the website use your computer's power. After that everything happens at klips.pro/studio. The setup checklist walks you through it in a few minutes.",
   },
   {
     q: "Why do I connect my own Claude?",
@@ -67,15 +71,15 @@ const FAQ = [
   },
   {
     q: "Does my video get uploaded?",
-    a: "No. Your footage is read from your own drive and the clips are written back to it. Klips only sends us the clip titles and counts so you can see your history.",
+    a: "Not to us. When you drop a video into Klips Studio, it goes from your browser straight to Klips Engine on the same computer, and your clips are saved there. We only receive clip titles and counts so you can see your history.",
   },
   {
     q: "Can I cancel a plan?",
     a: "Yes, from your account page, and you keep any tokens you've already been given. Yearly plans are paid upfront for 12 months.",
   },
   {
-    q: "How do I sign in to the app?",
-    a: "With the same email and password as your klips.pro account. Your tokens and clip history are shared between the app and the website.",
+    q: "Can I use Klips on more than one computer?",
+    a: "Yes. Install Klips Engine on each computer and open klips.pro/studio there. Your tokens and history follow your account.",
   },
 ];
 
@@ -127,7 +131,7 @@ export function Landing() {
           <div className="rise">
             <span className="inline-flex items-center gap-2 rounded-full border border-ink-700 bg-ink-900 px-3 py-1 text-xs font-semibold text-ink-300">
               <span className="h-2 w-2 rounded-full bg-brand-500" />
-              Runs on your computer · connects to your own Claude Code
+              Runs in your browser · powered by your computer and your own Claude Code
             </span>
             <h1 className="mt-6 text-5xl font-extrabold leading-[1.05] tracking-tight md:text-6xl">
               One long video.
@@ -136,7 +140,7 @@ export function Landing() {
             </h1>
             <p className="mt-6 max-w-lg text-lg text-ink-300">
               Klips turns podcasts, interviews and Zoom calls into vertical clips that are captioned, reframed and
-              ready to post — using your machine, not a rented cloud queue.
+              ready to post. You work in your browser; your own computer does the heavy lifting, not a rented cloud queue.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <a href="#pricing" className="btn btn-primary text-base">Start from $1</a>

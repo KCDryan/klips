@@ -9,11 +9,31 @@ const FILLER_RE = /^(um+|uh+|erm|er|ah|hmm|uhm|mm)[.,!?]*$/i;
 let META = null;
 let viewTimer = null;
 
-async function api(url, opts = {}) {
-  const res = await fetch(url, opts);
+// Klips Studio runs on klips.pro; the work happens in Klips Engine on this computer.
+// `api` talks to the engine, `site` talks to klips.pro (signed in with the browser's session cookie).
+const ENGINE_PORTS = [47813, 47814, 47815, 47816, 47817];
+let ENGINE = "";
+let ACCOUNT = null;
+
+const eng = (path) => `${ENGINE}${path}`;
+
+async function readJson(res) {
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || res.statusText);
+  if (!res.ok) {
+    const err = new Error(data.error || res.statusText);
+    err.status = res.status;
+    throw err;
+  }
   return data;
+}
+
+async function api(url, opts = {}) {
+  return readJson(await fetch(eng(url), opts));
+}
+
+async function site(url, opts = {}) {
+  const headers = opts.body ? { "Content-Type": "application/json", ...(opts.headers || {}) } : opts.headers;
+  return readJson(await fetch(url, { ...opts, headers, credentials: "same-origin" }));
 }
 
 function toast(message, ms = 3200) {
@@ -145,31 +165,33 @@ function setupUpload() {
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     if (!input.files[0]) return toast("Add your meeting recording in box 1 first.");
-    if (!LICENSE.activated) return toast("Sign in to your Klips account first (the bar at the top).", 6000);
+    if (!LICENSE.activated) return toast("Still connecting Klips Engine to your account. Try again in a moment.", 6000);
     if (CLAUDE && CLAUDE.backend === "claude-code" && !CLAUDE.ready) {
       return toast("Connect Claude Code first (the steps at the top).", 6000);
     }
     const needed = tokenCost($("#new-job").clips.value);
     if (needed > LICENSE.tokens) {
-      return toast(`That needs ${needed} tokens and you have ${LICENSE.tokens}. Top up at klips.pro.`, 7000);
+      return toast(`That needs ${needed} tokens and you have ${LICENSE.tokens}. Buy more on your account page.`, 7000);
     }
     const button = $("#submit-job");
     const status = $("#upload-status");
     button.disabled = true;
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/jobs");
+    xhr.open("POST", eng("/api/jobs"));
     xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) status.textContent = `Uploading ${Math.round((ev.loaded / ev.total) * 100)}%`; };
     xhr.onload = () => {
       button.disabled = false;
       status.textContent = "";
-      const data = JSON.parse(xhr.responseText || "{}");
+      let data = {};
+      try { data = JSON.parse(xhr.responseText || "{}"); } catch { /* not JSON */ }
       if (xhr.status !== 200) return toast(data.error || "Upload failed");
       form.reset();
       renderToggles($("#home-toggles"), META.defaults);
       label();
       location.hash = `#/job/${data.id}`;
+      setTimeout(refreshTokens, 4000); // tokens are reserved once the clips are planned
     };
-    xhr.onerror = () => { button.disabled = false; status.textContent = ""; toast("Upload failed"); };
+    xhr.onerror = () => { button.disabled = false; status.textContent = ""; toast("Upload failed. Is Klips Engine still running?", 6000); };
     xhr.send(new FormData(form));
   });
 }
@@ -198,7 +220,7 @@ async function showJob(id) {
 
   const anyDone = job.clips.some((c) => c.status === "done");
   $("#job-export").hidden = !anyDone;
-  $("#job-export").href = `/api/jobs/${id}/export.zip`;
+  $("#job-export").href = eng(`/api/jobs/${id}/export.zip`);
   $("#job-retry").hidden = !(job.status === "error" || job.clips.some((c) => c.status === "error"));
   renderClips(job);
 
@@ -226,7 +248,7 @@ function renderClips(job) {
       grid.append(card);
     }
     const thumb = card.querySelector(".thumb");
-    const thumbUrl = clip.thumb ? `url("/media/${job.id}/${encodeURIComponent(clip.thumb)}?v=${clip.version}")` : "";
+    const thumbUrl = clip.thumb ? `url("${eng(`/media/${job.id}/${encodeURIComponent(clip.thumb)}`)}?v=${clip.version}")` : "";
     if (thumb.dataset.bg !== thumbUrl) { thumb.style.backgroundImage = thumbUrl; thumb.dataset.bg = thumbUrl; }
     card.querySelector(".badge").textContent = clip.virality_score;
     card.querySelector("h4").textContent = clip.title;
@@ -311,7 +333,7 @@ const editor = {
     this.words = words;
     this.peaks = peaks;
     const src = $("#ed-source");
-    if (!src.src) src.src = `/api/jobs/${job.id}/source`;
+    if (!src.src) src.src = eng(`/api/jobs/${job.id}/source`);
     this.renderWords();
     this.draw();
     this.syncBusy(clip);
@@ -323,7 +345,7 @@ const editor = {
     const platform = (clip.overrides && clip.overrides.platform) || job.options.platform;
     $("#ed-phone").classList.toggle("landscape45", platform === "linkedin");
     if (clip.file) {
-      const url = `/media/${job.id}/${encodeURIComponent(clip.file)}?v=${clip.version}`;
+      const url = eng(`/media/${job.id}/${encodeURIComponent(clip.file)}?v=${clip.version}`);
       video.src = url;
       $("#ed-download").href = url;
       $("#ed-download").setAttribute("download", clip.file);
@@ -573,7 +595,7 @@ function setupBrand() {
     preview.innerHTML = "";
     if (brand.has_logo) {
       const img = document.createElement("img");
-      img.src = `/api/brand/logo?t=${Date.now()}`;
+      img.src = eng(`/api/brand/logo?t=${Date.now()}`);
       preview.append(img);
     }
     dialog.showModal();
@@ -601,11 +623,11 @@ function tokenCost(clips) {
 
 function renderLicense() {
   const chip = $("#token-chip");
-  chip.hidden = !LICENSE.activated;
-  chip.textContent = `${LICENSE.tokens.toLocaleString()} tokens`;
-  chip.title = LICENSE.email ? `${LICENSE.email} · click to refresh` : "Click to refresh";
-  $("#license-warning").hidden = LICENSE.activated;
-  $("#sign-out").hidden = !LICENSE.activated;
+  chip.hidden = !ACCOUNT;
+  if (ACCOUNT) {
+    chip.textContent = `${LICENSE.tokens.toLocaleString()} tokens`;
+    chip.title = `${ACCOUNT.email} · buy tokens or see your history`;
+  }
   updateCostLine();
 }
 
@@ -615,55 +637,180 @@ function updateCostLine() {
   const clips = Number($("#new-job").clips.value) || 0;
   const cost = tokenCost(clips);
   if (!LICENSE.activated) {
-    line.textContent = "Sign in to your Klips account to generate clips.";
+    line.textContent = "Connecting Klips Engine to your account…";
     line.classList.remove("short");
     return;
   }
   const short = cost > LICENSE.tokens;
   line.textContent = short
-    ? `${clips} clips need ${cost} tokens — you have ${LICENSE.tokens}. Top up at klips.pro.`
+    ? `${clips} clips need ${cost} tokens — you have ${LICENSE.tokens}. Buy more on your account page.`
     : `${clips} clips = ${cost} tokens · ${LICENSE.tokens.toLocaleString()} available`;
   line.classList.toggle("short", short);
 }
 
-async function refreshLicense(remote = false) {
+/** The token balance lives on klips.pro; refresh it from there. */
+async function refreshTokens() {
   try {
-    LICENSE = await api(remote ? "/api/license/refresh" : "/api/license", remote ? { method: "POST" } : {});
-  } catch (e) {
-    if (remote) toast(e.message, 5000);
+    const me = await site("/api/auth/me");
+    if (!me.signed_in) {
+      location.href = `/login?next=${encodeURIComponent("/studio/")}`;
+      return;
+    }
+    ACCOUNT = me;
+    LICENSE.tokens = me.tokens || 0;
+  } catch {
+    /* offline for a moment; keep the last known balance */
   }
   renderLicense();
 }
 
-function setupLicense() {
-  $("#license-warning").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const email = $("#account-email");
-    const password = $("#account-password");
-    const button = e.submitter || $("#license-warning button[type=submit]");
-    button.disabled = true;
+/** Make sure the engine on this computer uses the account signed in here. */
+async function linkEngine() {
+  const info = await api("/api/engine");
+  if (info.linked && info.account === ACCOUNT.email) {
     try {
-      LICENSE = await api("/api/license", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.value, password: password.value }),
-      });
-      password.value = "";
-      renderLicense();
-      toast(`Signed in as ${LICENSE.email} · ${LICENSE.tokens.toLocaleString()} tokens ready`);
-    } catch (err) {
-      toast(err.message, 6000);
+      LICENSE = await api("/api/license/refresh", { method: "POST" });
+    } catch {
+      LICENSE = await api("/api/license");
+    }
+    return;
+  }
+  const { app_key } = await site("/api/engine/link", { method: "POST", body: "{}" });
+  LICENSE = await api("/api/license/link", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ app_key }),
+  });
+}
+
+function setupLicense() {
+  $("#new-job").clips.addEventListener("input", updateCostLine);
+}
+
+// ---------- Klips Engine connection ----------
+
+async function probeEngine() {
+  const override = new URLSearchParams(location.search).get("engine");
+  const bases = override ? [override.replace(/\/$/, "")] : ENGINE_PORTS.map((port) => `http://127.0.0.1:${port}`);
+  const attempts = bases.map(async (base) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+    try {
+      const res = await fetch(`${base}/api/engine`, { signal: controller.signal });
+      const info = await res.json();
+      if (info.app !== "klips-engine") throw new Error("not Klips");
+      return { base, info };
     } finally {
-      button.disabled = false;
+      clearTimeout(timer);
     }
   });
-  $("#sign-out").addEventListener("click", async () => {
-    LICENSE = await api("/api/license", { method: "DELETE" });
-    renderLicense();
-    toast("Signed out of Klips");
+  try {
+    return await Promise.any(attempts);
+  } catch {
+    return null;
+  }
+}
+
+function showEngineMissing(stopped) {
+  $("#boot").hidden = true;
+  $("#studio").hidden = true;
+  $("#engine-missing").hidden = false;
+  $("#open-brand").hidden = true;
+  const chip = $("#engine-chip");
+  chip.hidden = !stopped;
+  chip.classList.add("off");
+  chip.querySelector("span").textContent = "Engine stopped";
+  $("#engine-missing-title").textContent = stopped
+    ? "Klips Engine stopped"
+    : "Start Klips Engine on this computer";
+  const ua = navigator.userAgent;
+  const windows = /Windows/i.test(ua);
+  $("#engine-open-hint").textContent = windows
+    ? "Open Klips from the Start menu. It starts the engine and keeps it running in the background."
+    : "Open Klips from your Applications folder. It starts the engine and keeps it running in the background.";
+  const primary = $("#engine-download-primary");
+  const secondary = $("#engine-download-secondary");
+  primary.href = windows ? "/download/windows" : "/download/mac";
+  primary.textContent = windows ? "Download for Windows" : "Download for Mac";
+  secondary.href = windows ? "/download/mac" : "/download/windows";
+  secondary.textContent = windows ? "Download for Mac" : "Download for Windows";
+  if (/Safari/i.test(ua) && !/Chrome|Chromium|Edg/i.test(ua)) {
+    $("#engine-browser-note").textContent = "Safari may block the connection to Klips Engine. If this page doesn't connect after you open Klips, use Chrome or Edge.";
+  }
+}
+
+/** Wait until the engine answers, showing install help meanwhile. */
+async function connectEngine(stopped = false) {
+  for (let attempt = 0; ; attempt++) {
+    const found = await probeEngine();
+    if (found) {
+      ENGINE = found.base;
+      $("#engine-missing").hidden = true;
+      const chip = $("#engine-chip");
+      chip.hidden = false;
+      chip.classList.remove("off");
+      chip.querySelector("span").textContent = `Engine ${found.info.version}`;
+      return found.info;
+    }
+    if (attempt === 1 || stopped) showEngineMissing(stopped);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+  }
+}
+
+const versionParts = (v) => String(v || "0").split(".").map((n) => parseInt(n, 10) || 0);
+function isOlder(a, b) {
+  const [x, y] = [versionParts(a), versionParts(b)];
+  for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0);
+  return false;
+}
+
+function setupEngineChip() {
+  $("#engine-chip").addEventListener("click", async () => {
+    if ($("#engine-chip").classList.contains("off")) return;
+    if (!confirm("Quit Klips Engine on this computer? Clips that are being made will stop. Open the Klips app to start it again.")) return;
+    try {
+      await api("/api/engine/quit", { method: "POST" });
+      toast("Klips Engine is quitting");
+    } catch (e) {
+      toast(e.message);
+    }
   });
-  $("#token-chip").addEventListener("click", () => refreshLicense(true));
-  $("#new-job").clips.addEventListener("input", updateCostLine);
+}
+
+async function checkForUpdate(info) {
+  try {
+    const latest = await site("/api/engine/latest");
+    if (!latest.version || !isOlder(info.version, latest.version)) return;
+    $("#engine-update").hidden = false;
+    $("#engine-update-text").textContent = `You have ${info.version}; version ${latest.version} is available.`;
+    $("#engine-update-link").href = info.platform === "windows" ? "/download/windows" : "/download/mac";
+  } catch {
+    /* not important enough to interrupt anyone */
+  }
+}
+
+/** Notice if the engine is closed while the studio is open, and reconnect when it's back. */
+function watchEngine() {
+  let failures = 0;
+  const tick = async () => {
+    try {
+      const res = await fetch(eng("/api/engine"));
+      if (!res.ok) throw new Error();
+      failures = 0;
+    } catch {
+      failures += 1;
+      if (failures >= 2) {
+        await connectEngine(true);
+        failures = 0;
+        await linkEngine().catch(() => undefined);
+        $("#studio").hidden = false;
+        $("#open-brand").hidden = false;
+        route();
+      }
+    }
+    setTimeout(tick, 8000);
+  };
+  setTimeout(tick, 8000);
 }
 
 // ---------- Claude Code setup ----------
@@ -700,7 +847,7 @@ function renderClaude(status) {
   $("#cc-install-text").textContent = status.installed
     ? "Installed."
     : installing
-      ? "Installing with Anthropic's official installer. Keep Klips open."
+      ? "Installing with Anthropic's official installer. Keep this tab open."
       : install.error || "Free to install. It takes about a minute.";
   const log = $("#cc-install-log");
   log.hidden = !(installing || install.state === "failed") || !install.log;
@@ -760,8 +907,26 @@ function setupClaude(initial) {
 // ---------- boot ----------
 
 (async function init() {
+  await refreshTokens();
+  if (!ACCOUNT) return;
+  const info = await connectEngine();
+  $("#boot-text").textContent = "Connecting Klips Engine to your account…";
+  $("#boot").hidden = false;
+  try {
+    await linkEngine();
+  } catch (e) {
+    $("#boot-text").textContent = `Couldn't connect Klips Engine to your account: ${e.message} Reload to try again.`;
+    return;
+  }
   META = await api("/api/meta");
-  LICENSE = META.klips || LICENSE;
+  LICENSE = { ...META.klips, tokens: ACCOUNT.tokens || 0 };
+  $("#boot").hidden = true;
+  $("#studio").hidden = false;
+  $("#open-brand").hidden = false;
+  checkForUpdate(info);
+  setupEngineChip();
+  watchEngine();
+  setInterval(refreshTokens, 20000);
   $("#key-warning").hidden = META.llm.backend !== "api" || META.llm.ready;
   setupClaude(META.llm);
   $("#key-warning").addEventListener("submit", async (e) => {

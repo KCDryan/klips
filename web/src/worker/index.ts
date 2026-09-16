@@ -124,8 +124,10 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     if (!["Klips-mac.dmg", "Klips-windows-setup.exe"].includes(key)) return fail("Unknown installer name.");
 
     if (path === "/api/admin/upload/start" && method === "POST") {
+      const version = (url.searchParams.get("version") || "").replace(/^v/, "");
       const upload = await env.DOWNLOADS.createMultipartUpload(key, {
         httpMetadata: { contentType: key.endsWith(".dmg") ? "application/x-apple-diskimage" : "application/vnd.microsoft.portable-executable" },
+        customMetadata: /^\d+\.\d+\.\d+$/.test(version) ? { version } : undefined,
       });
       return json({ upload_id: upload.uploadId });
     }
@@ -346,6 +348,44 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     await setPassword(env, user.id, String(body.new_password));
     await endAllSessions(env, user.id); // signs out every other browser
     return signedIn(env, user);
+  }
+
+  // ---- Klips Studio and the engine on the customer's computer ----
+
+  /** The studio hands this key to the engine on the customer's computer, so it can use their tokens. */
+  if (path === "/api/engine/link" && method === "POST") {
+    const user = await requireSession(env, request);
+    if (user instanceof Response) return user;
+    const license = await ensureLicense(env, user.id);
+    return json({ app_key: license.key, email: user.email });
+  }
+
+  /** The newest engine version on the download buttons, so the studio can offer updates. */
+  if (path === "/api/engine/latest" && method === "GET") {
+    const [mac, windows] = await Promise.all([env.DOWNLOADS.head("Klips-mac.dmg"), env.DOWNLOADS.head("Klips-windows-setup.exe")]);
+    return json({ version: mac?.customMetadata?.version || windows?.customMetadata?.version || null });
+  }
+
+  /** Progress through the setup checklist that isn't visible from the browser alone. */
+  if (path === "/api/onboarding" && method === "GET") {
+    const user = await requireSession(env, request);
+    if (user instanceof Response) return user;
+    const [bought, engine, clips] = await Promise.all([
+      env.DB.prepare("SELECT COUNT(*) AS n FROM token_ledger WHERE user_id = ? AND reason IN ('purchase', 'subscription_grant', 'manual')")
+        .bind(user.id).first<{ n: number }>(),
+      env.DB.prepare("SELECT device_name, last_seen_at FROM licenses WHERE user_id = ? AND last_seen_at IS NOT NULL ORDER BY last_seen_at DESC LIMIT 1")
+        .bind(user.id).first<{ device_name: string | null; last_seen_at: number }>(),
+      env.DB.prepare("SELECT COALESCE(SUM(clips_delivered), 0) AS n FROM generations WHERE user_id = ? AND status = 'completed'")
+        .bind(user.id).first<{ n: number }>(),
+    ]);
+    return json({
+      email: user.email,
+      tokens: user.tokens,
+      has_tokens: user.tokens > 0 || (bought?.n ?? 0) > 0,
+      engine_linked: Boolean(engine),
+      engine_device: engine?.device_name ?? null,
+      clips_made: clips?.n ?? 0,
+    });
   }
 
   // ---- account portal ----

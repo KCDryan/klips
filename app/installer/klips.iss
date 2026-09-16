@@ -1,5 +1,6 @@
-; Windows installer for Klips (Inno Setup 6).
+; Windows installer for Klips Engine (Inno Setup 6).
 ; Built by .github/workflows/build-app.yml from the PyInstaller output in app\dist\Klips.
+; The engine has no window: it runs in the background, starts at sign-in, and klips.pro/studio drives it.
 
 #define AppName "Klips"
 #ifndef AppVersion
@@ -28,7 +29,11 @@ PrivilegesRequiredOverridesAllowed=dialog
 UninstallDisplayName={#AppName}
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
+Name: "desktopicon"; Description: "Create a desktop shortcut to Klips Studio"; GroupDescription: "Shortcuts:"
+
+[Registry]
+; Start the engine quietly whenever you sign in to Windows.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Klips Engine"; ValueData: """{app}\Klips.exe"" --background"; Flags: uninsdeletevalue
 
 [Files]
 Source: "..\dist\Klips\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -39,4 +44,17 @@ Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\Klips.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\Klips.exe"; Description: "Open Klips"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\Klips.exe"; Description: "Start Klips and open Klips Studio"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM Klips.exe"; Flags: runhidden; RunOnceId: "StopKlipsEngine"
+
+[Code]
+// Stop a running engine first, so its files can be replaced during an update.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM Klips.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := '';
+end;

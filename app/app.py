@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Klips local server: upload, progress, clip editor, brand kit, ZIP export."""
+"""Klips Engine: the local API behind klips.pro/studio (upload, progress, clip editor, brand kit, ZIP export)."""
 from __future__ import annotations
 
 import json
@@ -7,12 +7,13 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import zipfile
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
-from clipper import claude_setup, klips_cloud, picker, pipeline, postcopy, store
+from clipper import claude_setup, engine, klips_cloud, picker, pipeline, postcopy, store
 from clipper.captions import PRESETS
 from clipper.config import DATA_DIR, FROZEN, PLATFORMS, available_fonts
 
@@ -36,6 +37,35 @@ def load_env_file() -> None:
 
 
 load_env_file()
+
+LOCAL_HOSTS = {"127.0.0.1", "localhost"}
+
+
+@app.before_request
+def only_this_computer_and_klips_pro():
+    """Refuse requests that don't come from this computer (DNS rebinding) or from another website."""
+    host = (request.host or "").rsplit(":", 1)[0]
+    if host not in LOCAL_HOSTS:
+        return jsonify(error="Klips Engine only answers on this computer."), 403
+    origin = request.headers.get("Origin")
+    if origin and origin not in engine.allowed_origins():
+        return jsonify(error="This website isn't allowed to use Klips Engine."), 403
+    return None
+
+
+@app.after_request
+def allow_klips_pro(response):
+    origin = request.headers.get("Origin")
+    if origin and origin in engine.allowed_origins():
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        response.headers["Access-Control-Expose-Headers"] = "Content-Disposition"
+        response.headers["Access-Control-Max-Age"] = "600"
+        if request.headers.get("Access-Control-Request-Private-Network"):
+            response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
 
 
 @app.post("/api/settings/api-key")
@@ -83,6 +113,35 @@ def claude_sign_in():
     except (RuntimeError, OSError, subprocess.SubprocessError) as e:
         return jsonify(error=str(e)), 400
     return jsonify(ok=True)
+
+
+@app.get("/api/engine")
+def engine_info():
+    """How the studio finds this engine and checks which account it's linked to."""
+    saved = klips_cloud.load_license()
+    return jsonify(
+        app="klips-engine",
+        version=pipeline.APP_VERSION,
+        platform=claude_setup.platform_id(),
+        device=klips_cloud.device_name(),
+        linked=bool(saved.get("key")),
+        account=saved.get("email", ""),
+    )
+
+
+@app.post("/api/engine/quit")
+def engine_quit():
+    threading.Timer(0.5, lambda: os._exit(0)).start()
+    return jsonify(ok=True)
+
+
+@app.post("/api/license/link")
+def license_link():
+    try:
+        klips_cloud.link(str((request.get_json(force=True) or {}).get("app_key", "")))
+    except klips_cloud.KlipsError as e:
+        return jsonify(error=str(e)), 400
+    return jsonify(_klips_status())
 
 
 @app.get("/api/license")
@@ -327,6 +386,6 @@ def brand_logo():
 if __name__ == "__main__":
     store.db()
     pipeline.start_worker()
-    port = int(os.environ.get("PORT", 5055))
-    print(f"AI Clipper running at http://localhost:{port}")
+    port = int(os.environ.get("PORT", engine.PORTS[0]))
+    print(f"Klips Engine running at http://127.0.0.1:{port} (open {engine.studio_url()})")
     app.run(host="127.0.0.1", port=port, debug=False, threaded=True)

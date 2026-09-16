@@ -41,7 +41,7 @@ publish_release() {
   tmp=$(mktemp -d)
   if gh release download "$latest" --dir "$tmp" --pattern "Klips-mac.dmg" --pattern "Klips-windows-setup.exe" >>"$LOG" 2>&1 \
     && [ -f "$tmp/Klips-mac.dmg" ] && [ -f "$tmp/Klips-windows-setup.exe" ] \
-    && "$PYTHON" "$REPO/scripts/upload_installer.py" "$tmp/Klips-windows-setup.exe" "$tmp/Klips-mac.dmg" >>"$LOG" 2>&1; then
+    && "$PYTHON" "$REPO/scripts/upload_installer.py" --version "$latest" "$tmp/Klips-windows-setup.exe" "$tmp/Klips-mac.dmg" >>"$LOG" 2>&1; then
     echo "$latest" > "$done_file"
     log "published $latest installers to klips.pro/download"
   else

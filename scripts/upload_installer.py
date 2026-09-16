@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Upload a Klips installer to klips.pro's download storage, in 50 MB parts.
 
-    scripts/upload_installer.py path/to/Klips-mac.dmg
-    scripts/upload_installer.py path/to/Klips-windows-setup.exe
+    scripts/upload_installer.py [--version 1.3.0] path/to/Klips-mac.dmg path/to/Klips-windows-setup.exe
 
 Reads the private upload key from ~/klips/.admin-token (never committed).
 """
@@ -36,10 +35,10 @@ def call(method: str, path: str, params: dict, body: bytes | None = None, token:
     return {}
 
 
-def upload(path: Path, token: str) -> None:
+def upload(path: Path, token: str, version: str = "") -> None:
     key = path.name
     size = path.stat().st_size
-    start = call("POST", "/api/admin/upload/start", {"key": key}, token=token)
+    start = call("POST", "/api/admin/upload/start", {"key": key, "version": version}, token=token)
     upload_id = start["upload_id"]
     parts = []
     with path.open("rb") as f:
@@ -62,9 +61,13 @@ def upload(path: Path, token: str) -> None:
 def main() -> None:
     if len(sys.argv) < 2:
         raise SystemExit(__doc__)
+    args = sys.argv[1:]
+    version = ""
+    if args[:1] == ["--version"] and len(args) >= 2:
+        version, args = args[1], args[2:]
     token = TOKEN_FILE.read_text().strip()
-    for arg in sys.argv[1:]:
-        upload(Path(arg), token)
+    for arg in args:
+        upload(Path(arg), token, version)
 
 
 if __name__ == "__main__":

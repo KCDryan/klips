@@ -58,9 +58,12 @@ export function AccountButtons() {
         <span className="hidden rounded-full border border-ink-700 px-3 py-1.5 text-sm font-semibold text-brand-500 sm:inline">
           {(me.tokens ?? 0).toLocaleString()} tokens
         </span>
-        <Link to="/account" className="btn btn-primary text-sm">
-          Your account
+        <Link to="/account" className="btn btn-ghost text-sm">
+          Account
         </Link>
+        <a href="/studio/" className="btn btn-primary text-sm">
+          Open Studio
+        </a>
       </div>
     );
   }

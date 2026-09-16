@@ -103,7 +103,7 @@ export function Privacy() {
 
       <h2>What we never receive</h2>
       <ul>
-        <li>Your video or audio files.</li>
+        <li>Your video or audio files. Klips Studio sends them from your browser to Klips Engine on the same computer, never to our servers.</li>
         <li>Your transcripts. Those go from your computer to Anthropic through your own Claude account.</li>
         <li>Your finished clips.</li>
       </ul>

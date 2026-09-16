@@ -123,6 +123,18 @@ def sign_in(email: str, password: str) -> dict:
     return result
 
 
+def link(app_key: str) -> dict:
+    """Connect this engine to the Klips account signed in at klips.pro/studio (the studio hands over the key)."""
+    key = app_key.strip().upper()
+    if not key.startswith("KLIPS-") or len(key) > 40:
+        raise KlipsError("That link code isn't valid. Reload klips.pro/studio and try again.")
+    data = load_license()
+    device = data.get("device_id") or uuid.uuid4().hex
+    result = _post("/api/app/activate", {"license_key": key, "device_id": device, "device_name": device_name()})
+    save_license({"key": key, "email": result.get("email", ""), "device_id": device, "tokens": result.get("tokens", 0)})
+    return result
+
+
 def refresh() -> dict:
     """Current balance for the saved licence key."""
     key = license_key()

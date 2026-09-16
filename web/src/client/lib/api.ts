@@ -63,6 +63,15 @@ export interface Account {
   ledger: LedgerEntry[];
 }
 
+export interface Onboarding {
+  email: string;
+  tokens: number;
+  has_tokens: boolean;
+  engine_linked: boolean;
+  engine_device: string | null;
+  clips_made: number;
+}
+
 export interface Me {
   signed_in: boolean;
   email?: string;
@@ -81,6 +90,8 @@ export const api = {
     post<Me>("/api/auth/password", { current_password: currentPassword, new_password: newPassword }),
 
   account: () => request<Account>("/api/account"),
+  onboarding: () => request<Onboarding>("/api/onboarding"),
+  engineLink: () => post<{ app_key: string; email: string }>("/api/engine/link"),
   billingPortal: () => post<{ url: string }>("/api/account/portal"),
 
   buyTokens: (tokens: number) => post<{ url: string }>("/api/checkout/pack", { tokens }),

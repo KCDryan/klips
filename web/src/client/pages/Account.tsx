@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { formatUsd, planById } from "../../shared/pricing";
 import { navigate } from "../App";
+import { Checklist } from "../components/Checklist";
 import { TokenSlider } from "../components/Pricing";
 import { Logo } from "../components/SiteHeader";
 import { type Account as AccountData, ApiError, api } from "../lib/api";
@@ -181,19 +182,23 @@ export function Account() {
           />
         </div>
 
+        <div className="mt-5">
+          <Checklist compact />
+        </div>
+
         <div className="card mt-5 flex flex-wrap items-center justify-between gap-4 p-6">
           <div>
-            <div className="font-semibold">Get the Klips app</div>
+            <div className="font-semibold">Klips Studio</div>
             <p className="mt-1 text-sm text-ink-300">
-              Sign in to the app with <span className="text-ink-100">{data.email}</span> and your password.
+              Make and edit clips in your browser. The work runs on your computer through Klips Engine.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <a className="btn btn-primary text-sm" href="/download/mac">
-              Download for Mac
+          <div className="flex flex-wrap items-center gap-3">
+            <a className="text-sm text-ink-500 hover:text-ink-100" href="/start">
+              Setup guide
             </a>
-            <a className="btn btn-ghost text-sm" href="/download/windows">
-              Download for Windows
+            <a className="btn btn-primary text-sm" href="/studio/">
+              Open Klips Studio
             </a>
           </div>
         </div>
@@ -222,7 +227,7 @@ export function Account() {
           <div className="mt-6 space-y-3">
             {data.generations.length === 0 ? (
               <div className="card p-10 text-center text-ink-300">
-                No clips yet. Open the Klips app, sign in with this account and drop in a video.
+                No clips yet. Open Klips Studio and drop in a long video.
               </div>
             ) : null}
             {data.generations.map((generation) => (

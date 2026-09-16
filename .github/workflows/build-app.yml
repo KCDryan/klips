@@ -47,18 +47,24 @@ jobs:
 
       - name: Package the app
         run: >
-          pyinstaller --noconfirm --clean --windowed --name Klips
+          pyinstaller --noconfirm --clean --windowed --name Klips --osx-bundle-identifier pro.klips.engine
           --collect-all mediapipe
           --collect-all faster_whisper
           --collect-all ctranslate2
           --collect-all onnxruntime
           --collect-all av
           --collect-all imageio_ffmpeg
-          --collect-all webview
           --collect-data cv2
           --hidden-import app
           --add-data "static${{ runner.os == 'Windows' && ';' || ':' }}static"
           klips_desktop.py
+
+      - name: Run as a background app on macOS (no Dock icon)
+        if: runner.os == 'macOS'
+        run: |
+          plutil -insert LSUIElement -bool true dist/Klips.app/Contents/Info.plist
+          codesign --force --deep --sign - dist/Klips.app
+          codesign --verify --deep --strict dist/Klips.app
 
       - name: Self-test the packaged app (macOS)
         if: runner.os == 'macOS'

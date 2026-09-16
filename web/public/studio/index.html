@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Klips Studio</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/studio/styles.css">
+</head>
+<body>
+<header class="top">
+  <a class="logo" href="/"><span class="logo-mark">K</span> Klips <span class="logo-sub">Studio</span></a>
+  <nav>
+    <a href="#/">Projects</a>
+    <button id="open-brand" class="ghost" hidden>Brand kit</button>
+    <button id="engine-chip" class="engine-chip" type="button" hidden title="Klips Engine on this computer"><i></i><span></span></button>
+    <a id="token-chip" class="chip" href="/account" hidden></a>
+    <a href="/account" class="nav-link">Account</a>
+  </nav>
+</header>
+
+<section id="boot" class="boot">
+  <div class="spinner"></div>
+  <p class="muted" id="boot-text">Opening Klips Studio…</p>
+</section>
+
+<section id="engine-missing" class="setup" hidden>
+  <div class="setup-head">
+    <div>
+      <strong id="engine-missing-title">Start Klips Engine on this computer</strong>
+      <span class="muted">Klips makes your clips on your own computer, with your own Claude Code. The Klips Engine is a one-time install that runs quietly in the background. This page connects to it by itself.</span>
+    </div>
+    <span class="small muted looking"><span class="spinner-inline"></span>Looking for Klips Engine…</span>
+  </div>
+  <ol class="setup-steps">
+    <li>
+      <span class="setup-dot">1</span>
+      <div>
+        <strong>Already installed? Open Klips</strong>
+        <p class="muted small" id="engine-open-hint">Open the Klips app once. It starts the engine and stays in the background after that.</p>
+      </div>
+    </li>
+    <li>
+      <span class="setup-dot">2</span>
+      <div>
+        <strong>Not installed yet? Download Klips Engine</strong>
+        <p class="muted small">About 230 MB. Install it, open it, and come back to this tab.</p>
+        <div class="setup-actions">
+          <a class="button primary" id="engine-download-primary" href="/download/mac">Download for Mac</a>
+          <a class="button ghost" id="engine-download-secondary" href="/download/windows">Download for Windows</a>
+          <a class="small muted" href="/start">Step-by-step setup guide</a>
+        </div>
+      </div>
+    </li>
+  </ol>
+  <p class="small muted engine-note" id="engine-browser-note">If your browser asks to let klips.pro connect to apps or devices on this computer, choose <b>Allow</b>. That's how the studio talks to the engine.</p>
+</section>
+
+<div id="engine-update" class="banner" hidden>
+  <strong>A new Klips Engine is ready.</strong> <span id="engine-update-text"></span>
+  <a id="engine-update-link" href="/download/mac">Download the update</a>
+</div>
+
+<section id="cc-setup" class="setup" hidden>
+  <div class="setup-head">
+    <div>
+      <strong>Connect Claude Code</strong>
+      <span class="muted">Klips uses your own Claude Pro or Max subscription to pick the best moments and write your titles. Set it up once on this computer.</span>
+    </div>
+    <button type="button" id="cc-recheck" class="ghost small">Check again</button>
+  </div>
+  <ol class="setup-steps">
+    <li id="cc-step-install">
+      <span class="setup-dot">1</span>
+      <div>
+        <strong>Install Claude Code</strong>
+        <p class="muted small" id="cc-install-text">Free to install. It takes about a minute.</p>
+        <div class="setup-actions">
+          <button type="button" id="cc-install" class="primary">Install Claude Code</button>
+        </div>
+        <pre id="cc-install-log" class="setup-log" hidden></pre>
+        <details class="setup-manual">
+          <summary>Prefer to install it yourself?</summary>
+          <p class="small muted">Open <span id="cc-shell">Terminal</span>, paste this, press Enter, then click <em>Check again</em>.</p>
+          <div class="setup-command"><code id="cc-command"></code><button type="button" id="cc-copy" class="ghost small">Copy</button></div>
+        </details>
+      </div>
+    </li>
+    <li id="cc-step-login">
+      <span class="setup-dot">2</span>
+      <div>
+        <strong>Sign in with your Claude account</strong>
+        <p class="muted small">A window opens and takes you to claude.ai in your browser. Sign in with the account that has Claude Pro or Max, then come back here. Klips notices automatically.</p>
+        <div class="setup-actions">
+          <button type="button" id="cc-login" class="primary">Sign in to Claude</button>
+          <span class="small muted" id="cc-login-hint"></span>
+        </div>
+      </div>
+    </li>
+  </ol>
+</section>
+<form id="key-warning" class="banner key-form" hidden>
+  <div>
+    <strong>Add your Claude API key to start making clips.</strong>
+    <span>Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>, then paste it here. It's saved only on this computer.</span>
+  </div>
+  <div class="key-row">
+    <input type="password" id="key-input" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" required>
+    <button class="primary" type="submit">Save key</button>
+  </div>
+</form>
+
+<main id="studio" hidden>
+  <section id="view-home">
+    <form id="new-job" class="panel">
+      <div class="uploads">
+        <label class="drop" id="drop">
+          <input type="file" name="video" id="video-input" accept="video/*" multiple>
+          <span class="step">1</span>
+          <strong>Meeting recording</strong>
+          <span id="drop-label" class="muted"></span>
+          <span class="muted small">The full Zoom recording (shared screen + webcam), or any long video.</span>
+        </label>
+        <label class="drop" id="drop-cam">
+          <input type="file" name="speaker" id="speaker-input" accept="video/*">
+          <span class="step">2</span>
+          <strong>Facecam recording <span class="muted">(optional)</span></strong>
+          <span id="cam-label" class="muted"></span>
+          <span class="muted small">Zoom's separate "active speaker" file, for a sharp webcam during screen shares.</span>
+        </label>
+      </div>
+      <div class="upload-actions">
+        <span class="muted small">Tip: drop both videos at once and they'll go in the right slots.</span>
+        <button type="button" id="swap-videos" class="ghost small" hidden>⇅ Swap videos</button>
+        <button type="button" id="cam-clear" class="ghost small" hidden>Remove facecam</button>
+      </div>
+      <div class="grid">
+        <label>Clips <input type="number" name="clips" min="1" max="30" value="5"></label>
+        <label>Min length (s) <input type="number" name="min" min="5" value="20"></label>
+        <label>Max length (s) <input type="number" name="max" min="10" value="60"></label>
+        <label>Platform <select name="platform" id="platform-select"></select></label>
+        <label>Caption style <select name="caption_preset" id="preset-select"></select></label>
+        <label>Transcription
+          <select name="whisper">
+            <option value="base">Fast</option>
+            <option value="small" selected>Balanced</option>
+            <option value="medium">Accurate</option>
+            <option value="large-v3">Best (slow)</option>
+          </select>
+        </label>
+        <label class="wide"><span>Find clips about <span class="muted">(optional)</span></span>
+          <input type="text" name="topic" placeholder="e.g. investing mistakes, funny moments, client stories">
+        </label>
+        <label class="wide"><span>Background music <span class="muted">(optional, ducked under speech)</span></span>
+          <input type="file" name="music" accept="audio/*">
+        </label>      </div>
+      <div class="toggles" id="home-toggles"></div>
+      <div class="form-foot">
+        <button class="primary" id="submit-job">Generate clips</button>
+        <span id="token-cost" class="muted small"></span>
+        <span id="upload-status" class="muted"></span>
+      </div>
+    </form>
+
+    <h2>Projects</h2>
+    <div id="jobs" class="jobs"></div>
+  </section>
+
+  <section id="view-job" hidden>
+    <a href="#/" class="back">← All projects</a>
+    <div class="job-head">
+      <div>
+        <h1 id="job-title"></h1>
+        <p id="job-stage" class="muted"></p>
+      </div>
+      <div class="actions">
+        <button id="job-retry" class="ghost" hidden>Retry failed</button>
+        <a id="job-export" class="button" hidden>Export all (ZIP)</a>
+        <button id="job-delete" class="ghost danger">Delete</button>
+      </div>
+    </div>
+    <div class="progress"><div id="job-progress"></div></div>
+    <details class="log"><summary>Activity log</summary><pre id="job-log"></pre></details>
+    <div id="clips" class="clip-grid"></div>
+  </section>
+</main>
+
+<dialog id="editor">
+  <div class="editor">
+    <div class="ed-preview">
+      <div class="phone" id="ed-phone">
+        <video id="ed-video" controls playsinline></video>
+        <div id="ed-busy" class="busy" hidden><div class="spinner"></div><span id="ed-busy-text">Rendering…</span></div>
+      </div>
+      <div class="row">
+        <a id="ed-download" class="button ghost" download>Download</a>
+        <button id="ed-close" class="ghost">Close</button>
+      </div>
+    </div>
+
+    <div class="ed-panel">
+      <div class="score-row">
+        <div class="big-score"><span id="ed-score"></span><small>score</small></div>
+        <div id="ed-breakdown" class="breakdown"></div>
+      </div>
+      <p id="ed-reason" class="muted small"></p>
+
+      <label>Title <input id="ed-title" maxlength="200"></label>
+      <label>On-screen hook <input id="ed-hook" maxlength="80"></label>
+
+      <h3>Timeline</h3>
+      <p class="muted small">Drag the yellow handles to change where the clip starts and ends.</p>
+      <div class="timeline"><canvas id="ed-wave"></canvas></div>
+      <div class="row small">
+        <span id="ed-range" class="muted"></span>
+        <button id="ed-play-src" class="ghost small" type="button">▶ Play selection</button>
+      </div>
+      <video id="ed-source" hidden></video>
+
+      <h3>Transcript</h3>
+      <p class="muted small">Click a word to cut it from the clip. Click again to bring it back.</p>
+      <div id="ed-words" class="words"></div>
+
+      <h3>Style</h3>
+      <div class="grid two">
+        <label>Platform <select id="ed-platform"></select></label>
+        <label>Caption style <select id="ed-preset"></select></label>
+      </div>
+      <div class="toggles" id="ed-toggles"></div>
+
+      <h3>Post copy</h3>
+      <div id="ed-post" class="post"></div>
+
+      <div class="sticky-foot">
+        <span id="ed-dirty" class="muted small"></span>
+        <button id="ed-render" class="primary">Save &amp; re-render</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="brand">
+  <form id="brand-form" class="brand-form">
+    <h2>Brand kit</h2>
+    <p class="muted">Applied to every clip you render from now on.</p>
+    <label>Caption font
+      <select name="font" id="brand-font"><option value="">Use each caption style's font</option></select>
+    </label>
+    <div class="grid two">
+      <label>Hook box color <input type="color" name="primary"></label>
+      <label>Accent color <input type="color" name="accent"></label>
+    </div>
+    <label>End-screen call to action <input name="cta" placeholder="Follow for part 2"></label>
+    <label>Link added to every description <input name="link_url" type="url" placeholder="https://www.patreon.com/..."></label>
+    <label>Text before the link <input name="link_text" placeholder="Get the full breakdowns and bonus content on Patreon:"></label>
+    <label>Logo watermark <input type="file" name="logo" accept="image/png,image/jpeg,image/webp"></label>
+    <div id="brand-logo" class="logo-preview"></div>
+    <label class="check"><input type="checkbox" name="remove_logo"> Remove current logo</label>
+    <div class="row end">
+      <button type="button" id="brand-cancel" class="ghost">Cancel</button>
+      <button type="submit" class="primary">Save brand kit</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" hidden></div>
+<script src="/studio/app.js"></script>
+</body>
+</html>

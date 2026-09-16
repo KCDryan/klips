@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { TOKENS_PER_CLIP, planById } from "../../shared/pricing";
+import { Checklist } from "../components/Checklist";
 import { Link, Logo } from "../components/SiteHeader";
 import { api } from "../lib/api";
 
@@ -9,7 +10,7 @@ type State =
   | { phase: "ready"; email?: string; tokens: number; added: number; plan?: string | null }
   | { phase: "error"; message: string };
 
-/** Shown straight after Stripe checkout: confirms the tokens landed and points to the download. */
+/** Shown straight after Stripe checkout: confirms the tokens landed, then the setup checklist. */
 export function Welcome() {
   const [state, setState] = useState<State>({ phase: "waiting" });
 
@@ -77,29 +78,10 @@ export function Welcome() {
                 {Math.floor(state.tokens / TOKENS_PER_CLIP).toLocaleString()} clips.
               </p>
 
-              <div className="card mt-8 p-7">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-500">Next steps</h2>
-                <ol className="mt-4 space-y-5 text-ink-300">
-                  <li>
-                    <span className="font-semibold text-ink-100">1. Download Klips</span>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <a className="btn btn-primary text-sm" href="/download/mac">
-                        Download for Mac
-                      </a>
-                      <a className="btn btn-ghost text-sm" href="/download/windows">
-                        Download for Windows
-                      </a>
-                    </div>
-                  </li>
-                  <li>
-                    <span className="font-semibold text-ink-100">2. Sign in to the app</span> with the same email and
-                    password you use here.
-                  </li>
-                  <li>
-                    <span className="font-semibold text-ink-100">3. Connect Claude Code</span> — the app walks you
-                    through signing in with your own Claude subscription.
-                  </li>
-                </ol>
+              <h2 className="mt-10 text-xl font-bold">Your next steps</h2>
+              <p className="mt-1 text-ink-300">Each step ticks itself off when it's done.</p>
+              <div className="mt-5">
+                <Checklist />
               </div>
 
               <Link to="/account" className="btn btn-ghost mt-8">

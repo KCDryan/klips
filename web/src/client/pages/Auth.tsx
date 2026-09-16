@@ -13,17 +13,25 @@ const TITLES: Record<AuthMode, { title: string; blurb: string }> = {
   reset: { title: "Choose a new password", blurb: "You'll be signed in straight after." },
 };
 
-/** After signing in: carry on with a purchase they started, or go to their account. */
-async function continueAfterAuth(): Promise<void> {
+/** Where to go after signing in: only paths on this site. */
+function nextPath(): string {
+  const next = new URLSearchParams(window.location.search).get("next") || "";
+  return next.startsWith("/") && !next.startsWith("//") ? next : "";
+}
+
+/** After signing in: carry on with a purchase they started, go where they were headed, or to setup. */
+async function continueAfterAuth(fallback: string): Promise<void> {
   const pending = takePendingPurchase();
   if (pending) {
     try {
       if (await startCheckout(pending, () => navigate("/login"))) return;
     } catch {
-      /* checkout unavailable: land on the account page, where they can try again */
+      /* checkout unavailable: land on the next page, where they can try again */
     }
   }
-  navigate("/account");
+  const next = nextPath() || fallback;
+  if (next.startsWith("/studio")) window.location.href = next; // the studio is a separate page
+  else navigate(next);
 }
 
 export function Auth({ mode }: { mode: AuthMode }) {
@@ -47,16 +55,16 @@ export function Auth({ mode }: { mode: AuthMode }) {
     try {
       if (mode === "login") {
         await api.signIn(email, password);
-        await continueAfterAuth();
+        await continueAfterAuth("/account");
       } else if (mode === "signup") {
         await api.signUp(email, password, needsKey ? licenseKey : undefined);
-        await continueAfterAuth();
+        await continueAfterAuth("/start");
       } else if (mode === "forgot") {
         await api.forgotPassword(email);
         setNotice(`If ${email} has a Klips account, a reset link is on its way. Check your inbox and spam folder.`);
       } else {
         await api.resetPassword(token, password);
-        await continueAfterAuth();
+        await continueAfterAuth("/account");
       }
     } catch (e) {
       const code = e instanceof ApiError ? e.data.code : undefined;
@@ -199,14 +207,14 @@ export function Auth({ mode }: { mode: AuthMode }) {
             {mode === "login" ? (
               <>
                 New to Klips?{" "}
-                <Link to="/signup" className="font-semibold text-brand-500 hover:underline">
+                <Link to={`/signup${window.location.search}`} className="font-semibold text-brand-500 hover:underline">
                   Create an account
                 </Link>
               </>
             ) : mode === "signup" ? (
               <>
                 Already have an account?{" "}
-                <Link to="/login" className="font-semibold text-brand-500 hover:underline">
+                <Link to={`/login${window.location.search}`} className="font-semibold text-brand-500 hover:underline">
                   Sign in
                 </Link>
               </>
