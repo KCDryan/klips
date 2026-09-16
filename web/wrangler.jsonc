@@ -32,11 +32,17 @@
 
   "vars": {
     // Where Stripe sends customers back after checkout.
-    "SITE_URL": "https://klips.pro",
-    // Point these at the installers once the first release is published on GitHub.
-    "DOWNLOAD_MAC_URL": "https://github.com/YOUR_GITHUB_USERNAME/klips/releases/latest/download/Klips-mac.dmg",
-    "DOWNLOAD_WINDOWS_URL": "https://github.com/YOUR_GITHUB_USERNAME/klips/releases/latest/download/Klips-windows.exe"
-  }
+    "SITE_URL": "https://klips.pro"
+  },
+
+  // Installers built by GitHub Actions. The repo is private, so scripts/sync.sh copies each
+  // release here and /download/mac and /download/windows serve the files from this bucket.
+  "r2_buckets": [
+    {
+      "binding": "DOWNLOADS",
+      "bucket_name": "klips-downloads"
+    }
+  ]
 
   // Secrets (set with `npx wrangler secret put NAME`, never committed):
   //   STRIPE_SECRET_KEY        sk_live_... / sk_test_...

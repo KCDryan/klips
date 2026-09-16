@@ -80,13 +80,24 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   const path = url.pathname;
   const method = request.method;
 
-  // Download links on the site point here, so the installer URLs can change without a redeploy of the pages.
-  if (path.startsWith("/download/")) {
-    const target = path.endsWith("/windows") ? env.DOWNLOAD_WINDOWS_URL : env.DOWNLOAD_MAC_URL;
-    if (!target) return new Response("Downloads aren't published yet.", { status: 503 });
-    // Built by hand rather than Response.redirect: that returns an immutable response, and the
-    // CORS header added further down would throw on it.
-    return new Response(null, { status: 302, headers: { location: target } });
+  // Installers live in R2 (the GitHub repo is private). scripts/sync.sh uploads each new release.
+  if (path === "/download/mac" || path === "/download/windows") {
+    const key = path.endsWith("/windows") ? "Klips-windows-setup.exe" : "Klips-mac.dmg";
+    const object = await env.DOWNLOADS.get(key);
+    if (!object) {
+      return new Response("The installer is being prepared. Please try again in a few minutes.", {
+        status: 503,
+        headers: { "content-type": "text/plain; charset=utf-8", "retry-after": "300" },
+      });
+    }
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+    headers.set("etag", object.httpEtag);
+    headers.set("content-length", String(object.size));
+    headers.set("content-type", key.endsWith(".dmg") ? "application/x-apple-diskimage" : "application/vnd.microsoft.portable-executable");
+    headers.set("content-disposition", `attachment; filename="${key}"`);
+    headers.set("cache-control", "no-cache");
+    return new Response(object.body, { headers });
   }
 
   // ---- public ----
