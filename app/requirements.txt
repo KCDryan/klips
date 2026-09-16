@@ -11,3 +11,5 @@ flask>=3
 imageio-ffmpeg>=0.5
 pytest>=8
 # Optional, faster transcription on Apple Silicon: pip install mlx-whisper
+# native app window for the installed desktop app
+pywebview>=5.0

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""AI Clipper web app: upload, progress, clip editor, brand kit, ZIP export."""
+"""Klips local server: upload, progress, clip editor, brand kit, ZIP export."""
 from __future__ import annotations
 
 import json
 import os
 import shutil
+import sys
 import zipfile
 from pathlib import Path
 
@@ -12,10 +13,10 @@ from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
 from clipper import klips_cloud, picker, pipeline, postcopy, store
 from clipper.captions import PRESETS
-from clipper.config import DATA_DIR, PLATFORMS, available_fonts
+from clipper.config import DATA_DIR, FROZEN, PLATFORMS, available_fonts
 
-ROOT = Path(__file__).resolve().parent
-ENV_FILE = ROOT / ".env"
+ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+ENV_FILE = (DATA_DIR if FROZEN else ROOT) / ".env"  # the installed app's own folder is read-only
 app = Flask(__name__, static_folder=str(ROOT / "static"), static_url_path="/static")
 
 VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi"}

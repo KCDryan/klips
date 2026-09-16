@@ -3,14 +3,30 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
 MODEL = "claude-opus-5"
 
-ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = Path(os.environ.get("CLIPPER_DATA", ROOT / "data"))
+# True inside the installed app (PyInstaller). Bundled files live in a read-only folder there.
+FROZEN = bool(getattr(sys, "frozen", False))
+ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+
+
+def _default_data_dir() -> Path:
+    """Projects, licence and settings: next to the code when developing, the OS's app-data folder when installed."""
+    if not FROZEN:
+        return ROOT / "data"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Klips"
+    if os.name == "nt":
+        return Path(os.environ.get("APPDATA") or Path.home()) / "Klips"
+    return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "Klips"
+
+
+DATA_DIR = Path(os.environ.get("CLIPPER_DATA") or _default_data_dir())
 FONTS_DIR = ROOT / "fonts"
 
 # Export presets. safe_bottom / safe_right are the fractions of the frame covered by platform UI.
