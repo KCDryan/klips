@@ -10,7 +10,7 @@ import numpy as np
 
 from . import captions as cap_mod
 from . import screenshare
-from .config import PLATFORMS, ffmpeg_exe
+from .config import PLATFORMS, ffmpeg_exe, no_window
 from .media import has_audio, probe, video_encoder
 from .reframe import compose, shot_at
 
@@ -128,7 +128,7 @@ def render_clip(video: Path, out_path: Path, edit: dict, shots: List[dict], clip
     cmd += [*video_encoder(), "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-t", f"{duration:.3f}",
             str(Path(out_path).resolve())]
 
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, **no_window())
     cap = cv2.VideoCapture(str(video))
     speaker_video = options.get("speaker_path")
     speaker_cap = (cv2.VideoCapture(str(speaker_video))

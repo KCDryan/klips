@@ -9,14 +9,14 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .config import ffmpeg_exe
+from .config import ffmpeg_exe, no_window
 
 SAMPLE_RATE = 16000
 
 
 def run_ffmpeg(args: list, cwd=None) -> None:
     proc = subprocess.run([ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-y", *args],
-                          cwd=cwd, capture_output=True, text=True)
+                          cwd=cwd, capture_output=True, text=True, **no_window())
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg failed: {proc.stderr.strip()[-800:]}")
 
@@ -34,7 +34,7 @@ def probe(video: Path) -> dict:
 
 
 def has_audio(video: Path) -> bool:
-    proc = subprocess.run([ffmpeg_exe(), "-hide_banner", "-i", str(video)], capture_output=True, text=True)
+    proc = subprocess.run([ffmpeg_exe(), "-hide_banner", "-i", str(video)], capture_output=True, text=True, **no_window())
     return "Audio:" in proc.stderr
 
 

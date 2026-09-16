@@ -29,13 +29,48 @@
   </div>
 </form>
 
-<div id="cc-warning" class="banner" hidden>
-  <strong>One more step.</strong> <span id="cc-message"></span>
-</div>
+<section id="cc-setup" class="setup" hidden>
+  <div class="setup-head">
+    <div>
+      <strong>Connect Claude Code</strong>
+      <span class="muted">Klips uses your own Claude Pro or Max subscription to pick the best moments and write your titles. Set it up once on this computer.</span>
+    </div>
+    <button type="button" id="cc-recheck" class="ghost small">Check again</button>
+  </div>
+  <ol class="setup-steps">
+    <li id="cc-step-install">
+      <span class="setup-dot">1</span>
+      <div>
+        <strong>Install Claude Code</strong>
+        <p class="muted small" id="cc-install-text">Free to install. It takes about a minute.</p>
+        <div class="setup-actions">
+          <button type="button" id="cc-install" class="primary">Install Claude Code</button>
+        </div>
+        <pre id="cc-install-log" class="setup-log" hidden></pre>
+        <details class="setup-manual">
+          <summary>Prefer to install it yourself?</summary>
+          <p class="small muted">Open <span id="cc-shell">Terminal</span>, paste this, press Enter, then click <em>Check again</em>.</p>
+          <div class="setup-command"><code id="cc-command"></code><button type="button" id="cc-copy" class="ghost small">Copy</button></div>
+        </details>
+      </div>
+    </li>
+    <li id="cc-step-login">
+      <span class="setup-dot">2</span>
+      <div>
+        <strong>Sign in with your Claude account</strong>
+        <p class="muted small">A window opens and takes you to claude.ai in your browser. Sign in with the account that has Claude Pro or Max, then come back here. Klips notices automatically.</p>
+        <div class="setup-actions">
+          <button type="button" id="cc-login" class="primary">Sign in to Claude</button>
+          <span class="small muted" id="cc-login-hint"></span>
+        </div>
+      </div>
+    </li>
+  </ol>
+</section>
 <form id="key-warning" class="banner key-form" hidden>
   <div>
     <strong>Add your Claude API key to start making clips.</strong>
-    <span>Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>, then paste it here. It's saved only on this Mac.</span>
+    <span>Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>, then paste it here. It's saved only on this computer.</span>
   </div>
   <div class="key-row">
     <input type="password" id="key-input" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" required>

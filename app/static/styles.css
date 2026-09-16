@@ -29,6 +29,28 @@ code { background: #0003; padding: 1px 6px; border-radius: 6px; }
 .key-row { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 360px; max-width: 600px; }
 .key-row input { min-width: 160px; }
 .key-row input { flex: 1; }
+.setup { max-width: 1180px; margin: 20px auto 0; padding: 20px 22px; background: linear-gradient(180deg, #221c05, var(--panel)); border: 1px solid #5a4500; border-radius: var(--radius); }
+.setup-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.setup-head > div { display: grid; gap: 4px; max-width: 760px; }
+.setup-head strong { font-size: 18px; }
+.setup-steps { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 12px; }
+.setup-steps li { display: flex; gap: 14px; padding: 14px; border-radius: 12px; background: #0b0b0e99; border: 1px solid var(--line); }
+.setup-steps li > div { flex: 1; min-width: 0; }
+.setup-steps p { margin: 4px 0 10px; }
+.setup-dot { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--panel-2); border: 1px solid var(--line); font-weight: 800; font-size: 13px; }
+.setup-steps li.done .setup-dot { background: var(--ok); border-color: var(--ok); color: #000; }
+.setup-steps li.done .setup-dot::after { content: "✓"; }
+.setup-steps li.done .setup-dot { font-size: 0; }
+.setup-steps li.done .setup-dot::after { font-size: 14px; }
+.setup-steps li.waiting { opacity: .5; }
+.setup-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.setup-log { margin: 10px 0 0; max-height: 160px; overflow: auto; padding: 10px; background: #000; border-radius: 8px; font-size: 12px; color: var(--muted); white-space: pre-wrap; }
+.setup-manual { margin-top: 10px; }
+.setup-manual summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.setup-command { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.setup-command code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; padding: 9px 11px; background: #000; border-radius: 8px; font-size: 13px; }
+.spinner-inline { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff3; border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
 main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 80px; }
 
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }

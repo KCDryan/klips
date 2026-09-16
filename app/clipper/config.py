@@ -81,6 +81,14 @@ def available_fonts() -> list:
     return names
 
 
+def no_window() -> dict:
+    """subprocess kwargs that stop Windows flashing a console window for every ffmpeg or Claude call."""
+    if sys.platform == "win32":
+        import subprocess
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
+
+
 @lru_cache(maxsize=None)
 def font_source(name: str) -> tuple:
     """Resolve a font name to (path, ttc_index)."""

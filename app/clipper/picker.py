@@ -14,7 +14,8 @@ from typing import Callable, List, Optional
 import anthropic
 from pydantic import BaseModel
 
-from .config import MODEL
+from . import claude_setup
+from .config import MODEL, no_window
 from .postcopy import normalize_hashtags
 
 # "claude-code" (default) runs your Claude Pro/Max subscription through the Claude Code CLI.
@@ -116,14 +117,7 @@ def backend() -> str:
 
 
 def claude_bin() -> Optional[str]:
-    found = shutil.which("claude")
-    if found:
-        return found
-    for name in ("claude", "claude.exe"):  # default install location on macOS/Linux and Windows
-        local = Path.home() / ".local" / "bin" / name
-        if local.exists():
-            return str(local)
-    return None
+    return claude_setup.find_claude()
 
 
 def _subscription_env() -> dict:
@@ -134,10 +128,13 @@ def _subscription_env() -> dict:
 def claude_logged_in(exe: str) -> bool:
     try:
         proc = subprocess.run([exe, "auth", "status", "--text"], capture_output=True, text=True, timeout=20,
-                              env=_subscription_env())
+                              env=_subscription_env(), stdin=subprocess.DEVNULL, **no_window())
     except (OSError, subprocess.TimeoutExpired):
         return False
-    return "not logged in" not in (proc.stdout + proc.stderr).lower()
+    output = (proc.stdout + proc.stderr).lower()
+    if "not logged in" in output or "not signed in" in output:
+        return False
+    return "login method" in output or proc.returncode == 0
 
 
 def llm_status() -> dict:
@@ -145,13 +142,22 @@ def llm_status() -> dict:
         ready = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
         return {"backend": "api", "ready": ready}
     exe = claude_bin()
-    if not exe:
-        return {"backend": "claude-code", "ready": False,
-                "message": "Claude Code isn't installed yet. Install it and sign in once (see README), then reload this page."}
-    if not claude_logged_in(exe):
-        return {"backend": "claude-code", "ready": False,
-                "message": "Sign in to Claude Code to start making clips: open Terminal, run  claude auth login  and log in with your Claude Max account, then reload this page."}
-    return {"backend": "claude-code", "ready": True}
+    installed = exe is not None
+    logged_in = installed and claude_logged_in(exe)
+    status = {
+        "backend": "claude-code",
+        "ready": logged_in,
+        "installed": installed,
+        "logged_in": logged_in,
+        "platform": claude_setup.platform_id(),
+        "install_command": claude_setup.install_command(),
+        "install": claude_setup.install_state(),
+    }
+    if not installed:
+        status["message"] = "Claude Code isn't installed on this computer yet."
+    elif not logged_in:
+        status["message"] = "Sign in to Claude Code with your Claude Pro or Max account."
+    return status
 
 
 def _parse(system: str, user: str, schema):
@@ -168,7 +174,7 @@ def _extract_json(text: str):
 def _parse_claude_code(system: str, user: str, schema):
     exe = claude_bin()
     if not exe:
-        raise RuntimeError("Claude Code isn't installed. Install it and sign in with your Claude Max account (see README).")
+        raise RuntimeError("Claude Code isn't set up on this computer. Use the Connect Claude Code steps at the top of Klips.")
     env = _subscription_env()
     cmd = [exe, "-p", "--output-format", "json", "--model", CLAUDE_CODE_MODEL,
            "--json-schema", json.dumps(schema.model_json_schema()),
@@ -177,7 +183,7 @@ def _parse_claude_code(system: str, user: str, schema):
     with tempfile.TemporaryDirectory() as empty_dir:  # no project files or CLAUDE.md to pick up
         try:
             proc = subprocess.run(cmd, input=user, capture_output=True, text=True, env=env, cwd=empty_dir,
-                                  timeout=CLAUDE_CODE_TIMEOUT)
+                                  timeout=CLAUDE_CODE_TIMEOUT, encoding="utf-8", errors="replace", **no_window())
         except subprocess.TimeoutExpired:
             raise RuntimeError("Claude Code took too long to respond. Try again.")
     try:
@@ -189,7 +195,7 @@ def _parse_claude_code(system: str, user: str, schema):
     if proc.returncode != 0 or data.get("is_error"):
         message = str(data.get("result") or proc.stderr or "unknown error").strip()
         if any(w in message.lower() for w in ("login", "log in", "auth", "credential")):
-            message += " Open Terminal, run `claude`, and sign in with your Claude Max account."
+            message += " Sign in again with the Connect Claude Code steps at the top of Klips."
         raise RuntimeError(f"Claude Code error: {message[-500:]}")
     output = data.get("structured_output")
     if output is None:

@@ -146,6 +146,9 @@ function setupUpload() {
     e.preventDefault();
     if (!input.files[0]) return toast("Add your meeting recording in box 1 first.");
     if (!LICENSE.activated) return toast("Sign in to your Klips account first (the bar at the top).", 6000);
+    if (CLAUDE && CLAUDE.backend === "claude-code" && !CLAUDE.ready) {
+      return toast("Connect Claude Code first (the steps at the top).", 6000);
+    }
     const needed = tokenCost($("#new-job").clips.value);
     if (needed > LICENSE.tokens) {
       return toast(`That needs ${needed} tokens and you have ${LICENSE.tokens}. Top up at klips.pro.`, 7000);
@@ -663,14 +666,102 @@ function setupLicense() {
   $("#new-job").clips.addEventListener("input", updateCostLine);
 }
 
+// ---------- Claude Code setup ----------
+
+let CLAUDE = null;
+let claudePoll = null;
+
+function renderClaude(status) {
+  CLAUDE = status;
+  const box = $("#cc-setup");
+  if (status.backend !== "claude-code" || status.ready) {
+    if (!box.hidden && status.ready) toast("Claude Code is connected. You're ready to make clips.", 5000);
+    box.hidden = true;
+    clearInterval(claudePoll);
+    claudePoll = null;
+    return;
+  }
+  box.hidden = false;
+  const windows = status.platform === "windows";
+  $("#cc-shell").textContent = windows ? "PowerShell (search for it in the Start menu)" : "Terminal";
+  $("#cc-command").textContent = status.install_command;
+
+  const install = status.install || {};
+  const installing = install.state === "running";
+  const stepInstall = $("#cc-step-install");
+  const stepLogin = $("#cc-step-login");
+  stepInstall.classList.toggle("done", status.installed);
+  stepLogin.classList.toggle("waiting", !status.installed);
+
+  const button = $("#cc-install");
+  button.hidden = status.installed;
+  button.disabled = installing;
+  button.innerHTML = installing ? '<span class="spinner-inline"></span>Installing…' : (install.state === "failed" ? "Try again" : "Install Claude Code");
+  $("#cc-install-text").textContent = status.installed
+    ? "Installed."
+    : installing
+      ? "Installing with Anthropic's official installer. Keep Klips open."
+      : install.error || "Free to install. It takes about a minute.";
+  const log = $("#cc-install-log");
+  log.hidden = !(installing || install.state === "failed") || !install.log;
+  log.textContent = install.log || "";
+  log.scrollTop = log.scrollHeight;
+  $(".setup-manual").hidden = status.installed;
+
+  $("#cc-login").disabled = !status.installed;
+
+  // Keep checking while setup is on screen, so it completes without a reload.
+  if (!claudePoll) claudePoll = setInterval(refreshClaude, installing ? 2000 : 4000);
+}
+
+async function refreshClaude() {
+  try {
+    renderClaude(await api("/api/claude/status"));
+  } catch {
+    /* the local server is busy; try on the next tick */
+  }
+}
+
+function setupClaude(initial) {
+  $("#cc-install").addEventListener("click", async () => {
+    try {
+      renderClaude(await api("/api/claude/install", { method: "POST" }));
+    } catch (err) {
+      toast(err.message, 6000);
+    }
+  });
+  $("#cc-login").addEventListener("click", async () => {
+    try {
+      await api("/api/claude/sign-in", { method: "POST" });
+      $("#cc-login-hint").textContent = "Finish signing in in the window that opened. This updates by itself.";
+    } catch (err) {
+      toast(err.message, 7000);
+    }
+  });
+  $("#cc-recheck").addEventListener("click", async () => {
+    $("#cc-recheck").disabled = true;
+    await refreshClaude();
+    $("#cc-recheck").disabled = false;
+    if (CLAUDE && !CLAUDE.ready) toast(CLAUDE.message || "Not connected yet.", 4000);
+  });
+  $("#cc-copy").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText($("#cc-command").textContent);
+      toast("Copied");
+    } catch {
+      toast("Select the command and copy it.");
+    }
+  });
+  renderClaude(initial);
+}
+
 // ---------- boot ----------
 
 (async function init() {
   META = await api("/api/meta");
   LICENSE = META.klips || LICENSE;
   $("#key-warning").hidden = META.llm.backend !== "api" || META.llm.ready;
-  $("#cc-warning").hidden = META.llm.backend !== "claude-code" || META.llm.ready;
-  $("#cc-message").textContent = META.llm.message || "";
+  setupClaude(META.llm);
   $("#key-warning").addEventListener("submit", async (e) => {
     e.preventDefault();
     try {

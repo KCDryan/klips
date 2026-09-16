@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
-from clipper import klips_cloud, picker, pipeline, postcopy, store
+from clipper import claude_setup, klips_cloud, picker, pipeline, postcopy, store
 from clipper.captions import PRESETS
 from clipper.config import DATA_DIR, FROZEN, PLATFORMS, available_fonts
 
@@ -62,6 +63,26 @@ def _klips_status() -> dict:
         "tokens_per_clip": klips_cloud.TOKENS_PER_CLIP,
         "site": klips_cloud.API_BASE,
     }
+
+
+@app.get("/api/claude/status")
+def claude_status():
+    return jsonify(picker.llm_status())
+
+
+@app.post("/api/claude/install")
+def claude_install():
+    claude_setup.start_install()
+    return jsonify(picker.llm_status())
+
+
+@app.post("/api/claude/sign-in")
+def claude_sign_in():
+    try:
+        claude_setup.open_sign_in()
+    except (RuntimeError, OSError, subprocess.SubprocessError) as e:
+        return jsonify(error=str(e)), 400
+    return jsonify(ok=True)
 
 
 @app.get("/api/license")
