@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "klips",
+  "main": "./src/worker/index.ts",
+  "compatibility_date": "2026-09-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // The React site is served from the same Worker; /api/* runs the Worker code first.
+  "assets": {
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+
+  // Create with:  npx wrangler d1 create klips     then paste the id below.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "klips",
+      "database_id": "PASTE_DATABASE_ID_AFTER_CREATING"
+    }
+  ],
+
+  "vars": {
+    "SITE_URL": "https://klips.pro"
+  }
+
+  // Secrets (set with `npx wrangler secret put NAME`, never committed):
+  //   STRIPE_SECRET_KEY        sk_live_... / sk_test_...
+  //   STRIPE_WEBHOOK_SECRET    whsec_...
+}

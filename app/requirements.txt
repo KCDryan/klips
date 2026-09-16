@@ -1,0 +1,13 @@
+anthropic>=0.70
+faster-whisper>=1.0
+# mediapipe 0.10.21 still bundles its face detection model (1.x needs a separate download)
+mediapipe==0.10.21
+opencv-contrib-python>=4.9,<5
+numpy<2
+pillow>=10
+pydantic>=2
+flask>=3
+# full static ffmpeg (libx264, VideoToolbox, libass) so Homebrew isn't required
+imageio-ffmpeg>=0.5
+pytest>=8
+# Optional, faster transcription on Apple Silicon: pip install mlx-whisper
