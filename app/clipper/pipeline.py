@@ -19,7 +19,7 @@ from . import klips_cloud, media, picker, reframe, render, speaker, store
 from .config import DATA_DIR
 from .transcribe import transcribe
 
-APP_VERSION = "1.4.1"
+APP_VERSION = "1.4.2"
 ECHO = False  # the CLI turns this on to print progress
 ANALYSIS_PAD = 3.0  # seconds of extra analysis around each clip so small in/out edits reuse the cache
 # Clips rendered at the same time. Each render uses about 2-3 cores (decode, compositing, encode).
