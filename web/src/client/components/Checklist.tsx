@@ -11,6 +11,7 @@ import {
   installClaude,
   linkEngine,
   localAccessBlocked,
+  macChip,
   openClaudeSignIn,
   UNBLOCK_HELP,
 } from "../lib/engine";
@@ -42,26 +43,49 @@ function Spinner() {
 function EngineStep({ engine, linking, linkError, blocked }: { engine: Engine | null; linking: boolean; linkError: string; blocked: boolean }) {
   const os = computerOs();
   const primary = os === "windows" ? "windows" : "mac";
+  const intel = primary === "mac" && macChip() === "intel";
+  const macFile = intel ? "Klips-mac-intel.dmg" : "Klips-mac.dmg";
   return (
     <div className="space-y-5">
       <p className="text-ink-300">
         Klips makes clips on your own computer, so it needs the Klips Engine: a one-time install that runs quietly in the
         background. You'll use Klips right here in your browser.
       </p>
-      <div className="flex flex-wrap gap-2">
-        <a className="btn btn-primary" href={`/download/${primary}`}>
-          Download for {primary === "mac" ? "Mac" : "Windows"}
-        </a>
-        <a className="btn btn-ghost" href={`/download/${primary === "mac" ? "windows" : "mac"}`}>
-          Download for {primary === "mac" ? "Windows" : "Mac"}
-        </a>
+      <div className="flex flex-wrap items-center gap-2">
+        {primary === "mac" ? (
+          <>
+            <a className="btn btn-primary" href={intel ? "/download/mac-intel" : "/download/mac"}>
+              Download for {intel ? "Intel Mac" : "Mac"}
+            </a>
+            <a className="btn btn-ghost" href="/download/windows">
+              Download for Windows
+            </a>
+            <a className="px-2 text-sm text-ink-500 hover:text-ink-100" href={intel ? "/download/mac" : "/download/mac-intel"}>
+              {intel ? "Mac with Apple M chip?" : "Older Intel Mac?"}
+            </a>
+          </>
+        ) : (
+          <>
+            <a className="btn btn-primary" href="/download/windows">
+              Download for Windows
+            </a>
+            <a className="btn btn-ghost" href="/download/mac">
+              Download for Mac
+            </a>
+          </>
+        )}
       </div>
       {primary === "mac" ? (
         <ol className="list-decimal space-y-2 pl-5 text-sm text-ink-300">
-          <li>Open <b className="text-ink-100">Klips-mac.dmg</b> from your Downloads and drag <b className="text-ink-100">Klips</b> into Applications.</li>
           <li>
-            Open Klips from Applications. The first time, macOS may say it can't check the developer: right-click Klips,
-            choose <b className="text-ink-100">Open</b>, then <b className="text-ink-100">Open</b> again.
+            Open <b className="text-ink-100">{macFile}</b> from your Downloads and drag <b className="text-ink-100">Klips</b> into
+            Applications.
+          </li>
+          <li>
+            Open Klips from Applications. If macOS says it can't verify Klips, click <b className="text-ink-100">Done</b>, open{" "}
+            <b className="text-ink-100">System Settings → Privacy &amp; Security</b>, scroll down to Security and click{" "}
+            <b className="text-ink-100">Open Anyway</b> next to Klips. Enter your Mac password, then click{" "}
+            <b className="text-ink-100">Open Anyway</b> again. You only do this once.
           </li>
           <li>Come back to this tab. It connects by itself.</li>
         </ol>

@@ -81,6 +81,8 @@ export const openClaudeSignIn = (engine: Engine) =>
 
 /** True when the browser has been told not to let klips.pro reach apps on this computer. */
 export async function localAccessBlocked(): Promise<boolean> {
+  // Only a public site can be blocked from reaching this computer; local development never is.
+  if (["localhost", "127.0.0.1"].includes(window.location.hostname)) return false;
   for (const name of ["local-network-access", "loopback-network"]) {
     try {
       const status = await navigator.permissions.query({ name: name as PermissionName });
@@ -90,6 +92,23 @@ export async function localAccessBlocked(): Promise<boolean> {
     }
   }
   return false;
+}
+
+/**
+ * Apple Silicon or Intel, for Mac downloads. Browsers report every Mac as "Intel Mac OS X",
+ * so read the graphics chip instead; when it can't tell, assume Apple Silicon (every Mac sold since 2021).
+ */
+export function macChip(): "apple" | "intel" {
+  try {
+    const gl = document.createElement("canvas").getContext("webgl");
+    const info = gl?.getExtension("WEBGL_debug_renderer_info");
+    const renderer = gl && info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : "";
+    if (/Apple [AM]\d/i.test(renderer)) return "apple";
+    if (/Intel|AMD|Radeon|NVIDIA/i.test(renderer)) return "intel";
+  } catch {
+    /* no WebGL */
+  }
+  return "apple";
 }
 
 export function computerOs(): "mac" | "windows" | "other" {

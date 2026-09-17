@@ -1,8 +1,15 @@
 name: Build Klips installers
 
-# Every push to main that touches the desktop app builds and self-tests both installers.
-# Pushing a version tag (v1.0.1, v1.1.0, ...) also publishes them as a GitHub release,
-# which is where the Download buttons on klips.pro point.
+# Every push to main that touches the engine builds and self-tests the installers.
+# Pushing a version tag (v1.4.1, ...) also publishes them as a GitHub release; scripts/sync.sh then copies
+# them to klips.pro/download.
+#
+# Code signing switches on by itself once these repository secrets exist (Settings -> Secrets -> Actions):
+#   Mac:     APPLE_CERTIFICATE_P12 (base64 of the Developer ID Application .p12), APPLE_CERTIFICATE_PASSWORD,
+#            APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD (an app-specific password for notarization)
+#   Windows: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_SIGNING_ENDPOINT,
+#            AZURE_SIGNING_ACCOUNT, AZURE_CERT_PROFILE (Azure Artifact Signing)
+# Without them the Mac app is ad-hoc signed and the Windows installer is unsigned, as before.
 on:
   push:
     branches: [main]
@@ -20,9 +27,18 @@ jobs:
         include:
           - os: macos-latest
             name: mac
+            dmg: Klips-mac.dmg
+          - os: macos-15-intel   # older Intel Macs; if this build ever fails, the others still publish
+            name: mac-intel
+            dmg: Klips-mac-intel.dmg
+            optional: true
           - os: windows-latest
             name: windows
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.optional == true }}
+    env:
+      MAC_SIGNING: ${{ secrets.APPLE_CERTIFICATE_P12 != '' }}
+      WIN_SIGNING: ${{ secrets.AZURE_CLIENT_ID != '' }}
     defaults:
       run:
         working-directory: app
@@ -45,7 +61,7 @@ jobs:
       - name: Unit tests
         run: python -m pytest -q tests
 
-      - name: Package the app
+      - name: Package the engine
         run: >
           pyinstaller --noconfirm --clean --windowed --name Klips --osx-bundle-identifier pro.klips.engine
           --collect-all mediapipe
@@ -59,18 +75,85 @@ jobs:
           --add-data "static${{ runner.os == 'Windows' && ';' || ':' }}static"
           klips_desktop.py
 
+      # ---- macOS ----
+
       - name: Run as a background app on macOS (no Dock icon)
         if: runner.os == 'macOS'
+        run: plutil -insert LSUIElement -bool true dist/Klips.app/Contents/Info.plist
+
+      - name: Sign on macOS (ad-hoc, no Developer ID yet)
+        if: runner.os == 'macOS' && env.MAC_SIGNING != 'true'
         run: |
-          plutil -insert LSUIElement -bool true dist/Klips.app/Contents/Info.plist
           codesign --force --deep --sign - dist/Klips.app
           codesign --verify --deep --strict dist/Klips.app
 
-      - name: Self-test the packaged app (macOS)
+      - name: Sign on macOS with Developer ID
+        if: runner.os == 'macOS' && env.MAC_SIGNING == 'true'
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          security import "$RUNNER_TEMP/cert.p12" -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm "$RUNNER_TEMP/cert.p12"
+          IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)"/\1/')
+          test -n "$IDENTITY"
+          SIGN=(codesign --force --timestamp --options runtime --entitlements installer/entitlements.plist --sign "$IDENTITY")
+          # Inside out: every bundled binary first, then the app itself.
+          find dist/Klips.app/Contents -type f | while read -r f; do
+            if file "$f" | grep -q "Mach-O"; then "${SIGN[@]}" "$f"; fi
+          done
+          "${SIGN[@]}" dist/Klips.app
+          codesign --verify --deep --strict --verbose=2 dist/Klips.app
+
+      - name: Self-test the packaged engine (macOS)
         if: runner.os == 'macOS'
         run: KLIPS_SMOKE_TEST=1 CLIPPER_DATA="$RUNNER_TEMP/klips-data" ./dist/Klips.app/Contents/MacOS/Klips
 
-      - name: Self-test the packaged app (Windows)
+      - name: Build the Mac disk image
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p dmg && cp -R dist/Klips.app dmg/ && ln -s /Applications dmg/Applications
+          hdiutil create -volname Klips -srcfolder dmg -ov -format ULMO "dist/${{ matrix.dmg }}"
+
+      - name: Notarize the Mac disk image
+        if: runner.os == 'macOS' && env.MAC_SIGNING == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)"/\1/')
+          codesign --force --timestamp --sign "$IDENTITY" "dist/${{ matrix.dmg }}"
+          xcrun notarytool submit "dist/${{ matrix.dmg }}" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple "dist/${{ matrix.dmg }}"
+          spctl --assess --type open --context context:primary-signature --verbose "dist/${{ matrix.dmg }}"
+
+      # ---- Windows ----
+
+      - name: Sign the engine on Windows
+        if: runner.os == 'Windows' && env.WIN_SIGNING == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE }}
+          files-folder: ${{ github.workspace }}\app\dist\Klips
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Self-test the packaged engine (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -81,12 +164,6 @@ jobs:
           Get-Content $log, "$log.err" -ErrorAction SilentlyContinue
           if ($p.ExitCode -ne 0) { throw "Smoke test failed with exit code $($p.ExitCode)" }
 
-      - name: Build the Mac disk image
-        if: runner.os == 'macOS'
-        run: |
-          mkdir -p dmg && cp -R dist/Klips.app dmg/ && ln -s /Applications dmg/Applications
-          hdiutil create -volname Klips -srcfolder dmg -ov -format ULMO dist/Klips-mac.dmg
-
       - name: Build the Windows installer
         if: runner.os == 'Windows'
         shell: pwsh
@@ -95,11 +172,27 @@ jobs:
           $version = if ($env:GITHUB_REF -like "refs/tags/v*") { $env:GITHUB_REF_NAME.TrimStart("v") } else { "1.0.0" }
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" installer\klips.iss
 
+      - name: Sign the Windows installer
+        if: runner.os == 'Windows' && env.WIN_SIGNING == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE }}
+          files-folder: ${{ github.workspace }}\app\dist
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
       - uses: actions/upload-artifact@v5
         with:
           name: Klips-${{ matrix.name }}
           path: |
-            app/dist/Klips-mac.dmg
+            app/dist/*.dmg
             app/dist/Klips-windows-setup.exe
           if-no-files-found: error
 
@@ -118,5 +211,6 @@ jobs:
         with:
           files: |
             downloads/Klips-mac.dmg
+            downloads/Klips-mac-intel.dmg
             downloads/Klips-windows-setup.exe
           generate_release_notes: true

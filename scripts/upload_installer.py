@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""Upload a Klips installer to klips.pro's download storage, in 50 MB parts.
+"""Upload files to klips.pro's storage (Cloudflare R2), in 50 MB parts.
 
-    scripts/upload_installer.py [--version 1.3.0] path/to/Klips-mac.dmg path/to/Klips-windows-setup.exe
+    scripts/upload_installer.py [--version 1.4.1] Klips-mac.dmg Klips-mac-intel.dmg Klips-windows-setup.exe
+    scripts/upload_installer.py demo.mp4 demo-poster.jpg      the landing page's demo clip
+
+The file name decides where it goes; the site only accepts the names above.
 
 Reads the private upload key from ~/klips/.admin-token (never committed).
 """

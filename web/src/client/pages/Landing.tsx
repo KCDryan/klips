@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
+
 import { FREE_CLIPS_PER_DAY, TOKENS_PER_CLIP } from "../../shared/pricing";
 import { PlanCards, TokenSlider } from "../components/Pricing";
 import { AccountButtons, Link, Logo } from "../components/SiteHeader";
+import { api } from "../lib/api";
 
 const STEPS = [
   {
@@ -87,6 +90,51 @@ const FAQ = [
   },
 ];
 
+/** A real clip made with Klips, shown once one has been uploaded (scripts/upload_installer.py demo.mp4). */
+function Demo() {
+  const [demo, setDemo] = useState<{ video: boolean; poster: boolean } | null>(null);
+
+  useEffect(() => {
+    api.demo().then(setDemo).catch(() => setDemo(null));
+  }, []);
+
+  if (!demo?.video) return null;
+  return (
+    <section id="demo" className="mx-auto max-w-6xl px-5 py-20">
+      <div className="grid items-center gap-12 md:grid-cols-2">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">A real clip, made by Klips</h2>
+          <p className="mt-3 max-w-lg text-ink-300">
+            Straight out of Klips from a long recording, with no manual editing. Claude picked the moment and wrote the
+            hook, the frame follows the speaker, and the captions highlight each word as it's said.
+          </p>
+          <ul className="mt-6 space-y-2 text-ink-300">
+            {["Moment picked and scored by Claude", "Reframed to vertical on the speaker", "Word-by-word captions and a hook", "Title, description and hashtags written for you"].map((line) => (
+              <li key={line} className="flex gap-2">
+                <span className="text-brand-500">✓</span>
+                {line}
+              </li>
+            ))}
+          </ul>
+          <Link to="/signup" className="btn btn-primary mt-8">
+            Make yours free
+          </Link>
+        </div>
+        <div className="mx-auto w-[280px] overflow-hidden rounded-[2rem] border border-ink-700 bg-black shadow-2xl shadow-black/60">
+          <video
+            src="/media/demo.mp4"
+            poster={demo.poster ? "/media/demo-poster.jpg" : undefined}
+            className="aspect-[9/16] w-full"
+            controls
+            playsInline
+            preload="metadata"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /** A small mock of the app's output: shared screen on top, webcam and captions below. */
 function PhoneMock() {
   return (
@@ -157,6 +205,8 @@ export function Landing() {
           <PhoneMock />
         </div>
       </section>
+
+      <Demo />
 
       <section id="how" className="border-y border-ink-800 bg-ink-900/40">
         <div className="mx-auto max-w-6xl px-5 py-20">

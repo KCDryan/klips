@@ -39,9 +39,13 @@ publish_release() {
   [ -z "$latest" ] && return 0
   [ "$latest" = "$(cat "$done_file" 2>/dev/null)" ] && return 0
   tmp=$(mktemp -d)
-  if gh release download "$latest" --dir "$tmp" --pattern "Klips-mac.dmg" --pattern "Klips-windows-setup.exe" >>"$LOG" 2>&1 \
-    && [ -f "$tmp/Klips-mac.dmg" ] && [ -f "$tmp/Klips-windows-setup.exe" ] \
-    && "$PYTHON" "$REPO/scripts/upload_installer.py" --version "$latest" "$tmp/Klips-windows-setup.exe" "$tmp/Klips-mac.dmg" >>"$LOG" 2>&1; then
+  local files
+  if gh release download "$latest" --dir "$tmp" --pattern "Klips-mac.dmg" --pattern "Klips-mac-intel.dmg" --pattern "Klips-windows-setup.exe" >>"$LOG" 2>&1 \
+    && [ -f "$tmp/Klips-mac.dmg" ] && [ -f "$tmp/Klips-windows-setup.exe" ]; then
+    files=("$tmp/Klips-windows-setup.exe" "$tmp/Klips-mac.dmg")
+    [ -f "$tmp/Klips-mac-intel.dmg" ] && files+=("$tmp/Klips-mac-intel.dmg")  # optional: the Intel build may be skipped
+  fi
+  if [ -n "${files[*]:-}" ] && "$PYTHON" "$REPO/scripts/upload_installer.py" --version "$latest" "${files[@]}" >>"$LOG" 2>&1; then
     echo "$latest" > "$done_file"
     log "published $latest installers to klips.pro/download"
   else

@@ -18,6 +18,7 @@ import {
   planTokens,
   tokensForClips,
 } from "../shared/pricing";
+import { recordPageView, recordSignupSource, stats } from "./analytics";
 import {
   consumeResetToken,
   createResetToken,
@@ -51,6 +52,21 @@ import {
   spendTokens,
 } from "./db";
 import { createBillingPortal, createPackCheckout, createSubscriptionCheckout, handleStripeEvent, verifyStripeEvent } from "./stripe";
+
+/** Files the owner can upload to R2, and the type each is served with. */
+const UPLOAD_TYPES: Record<string, string> = {
+  "Klips-mac.dmg": "application/x-apple-diskimage",
+  "Klips-mac-intel.dmg": "application/x-apple-diskimage",
+  "Klips-windows-setup.exe": "application/vnd.microsoft.portable-executable",
+  "demo.mp4": "video/mp4",
+  "demo-poster.jpg": "image/jpeg",
+};
+
+const DOWNLOADS: Record<string, string> = {
+  "/download/mac": "Klips-mac.dmg",
+  "/download/mac-intel": "Klips-mac-intel.dmg",
+  "/download/windows": "Klips-windows-setup.exe",
+};
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -140,19 +156,29 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   const path = url.pathname;
   const method = request.method;
 
-  // Installer uploads, in parts (a single request is capped at 100 MB). Only for the owner's upload script.
-  if (path.startsWith("/api/admin/upload/")) {
+  // Owner-only tools: installer and demo uploads, and the stats report. Never for customers.
+  if (path.startsWith("/api/admin/")) {
     const given = request.headers.get("x-klips-admin") || "";
     if (!env.ADMIN_TOKEN || given.length !== env.ADMIN_TOKEN.length || given !== env.ADMIN_TOKEN) {
       return fail("Not allowed.", 403);
     }
+  }
+
+  if (path === "/api/admin/stats" && method === "GET") {
+    const days = Math.max(1, Math.min(365, Math.floor(Number(url.searchParams.get("days")) || 30)));
+    return json(await stats(env, days));
+  }
+
+  // Uploads to R2, in parts (a single request is capped at 100 MB).
+  if (path.startsWith("/api/admin/upload/")) {
     const key = url.searchParams.get("key") || "";
-    if (!["Klips-mac.dmg", "Klips-windows-setup.exe"].includes(key)) return fail("Unknown installer name.");
+    const contentType = Object.hasOwn(UPLOAD_TYPES, key) ? UPLOAD_TYPES[key] : "";
+    if (!contentType) return fail("Unknown file name.");
 
     if (path === "/api/admin/upload/start" && method === "POST") {
       const version = (url.searchParams.get("version") || "").replace(/^v/, "");
       const upload = await env.DOWNLOADS.createMultipartUpload(key, {
-        httpMetadata: { contentType: key.endsWith(".dmg") ? "application/x-apple-diskimage" : "application/vnd.microsoft.portable-executable" },
+        httpMetadata: { contentType },
         customMetadata: /^\d+\.\d+\.\d+$/.test(version) ? { version } : undefined,
       });
       return json({ upload_id: upload.uploadId });
@@ -176,8 +202,8 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   }
 
   // Installers live in R2 (the GitHub repo is private). scripts/sync.sh uploads each new release.
-  if (path === "/download/mac" || path === "/download/windows") {
-    const key = path.endsWith("/windows") ? "Klips-windows-setup.exe" : "Klips-mac.dmg";
+  if (Object.hasOwn(DOWNLOADS, path)) {
+    const key = DOWNLOADS[path];
     const object = await env.DOWNLOADS.get(key);
     if (!object) {
       return new Response("The installer is being prepared. Please try again in a few minutes.", {
@@ -189,13 +215,51 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     object.writeHttpMetadata(headers);
     headers.set("etag", object.httpEtag);
     headers.set("content-length", String(object.size));
-    headers.set("content-type", key.endsWith(".dmg") ? "application/x-apple-diskimage" : "application/vnd.microsoft.portable-executable");
+    headers.set("content-type", UPLOAD_TYPES[key]);
     headers.set("content-disposition", `attachment; filename="${key}"`);
     headers.set("cache-control", "no-cache");
     return new Response(object.body, { headers });
   }
 
+  // The landing page's demo video (uploaded with scripts/upload_installer.py demo.mp4). Supports seeking.
+  if ((path === "/media/demo.mp4" || path === "/media/demo-poster.jpg") && (method === "GET" || method === "HEAD")) {
+    const key = path.slice("/media/".length);
+    const object = await env.DOWNLOADS.get(key, { range: request.headers });
+    if (!object) return new Response("Not found", { status: 404 });
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+    headers.set("etag", object.httpEtag);
+    headers.set("accept-ranges", "bytes");
+    headers.set("cache-control", "public, max-age=3600");
+    headers.set("content-type", UPLOAD_TYPES[key]);
+    const range = object.range as { offset?: number; length?: number } | undefined;
+    if (range && request.headers.has("range")) {
+      const offset = range.offset ?? 0;
+      const length = range.length ?? object.size - offset;
+      headers.set("content-range", `bytes ${offset}-${offset + length - 1}/${object.size}`);
+      headers.set("content-length", String(length));
+      return new Response(method === "HEAD" ? null : (object as R2ObjectBody).body, { status: 206, headers });
+    }
+    headers.set("content-length", String(object.size));
+    return new Response(method === "HEAD" ? null : (object as R2ObjectBody).body, { headers });
+  }
+
   // ---- public ----
+
+  if (path === "/api/demo" && method === "GET") {
+    const [video, poster] = await Promise.all([env.DOWNLOADS.head("demo.mp4"), env.DOWNLOADS.head("demo-poster.jpg")]);
+    return json({ video: Boolean(video), poster: Boolean(poster) });
+  }
+
+  /** Page-view beacon from the site (no cookies, no ids). Always answers 204 so it never gets in the way. */
+  if (path === "/api/t" && method === "POST") {
+    try {
+      await recordPageView(env, request, await readJson(request));
+    } catch (e) {
+      console.error("page view not recorded", e);
+    }
+    return new Response(null, { status: 204 });
+  }
 
   if (path === "/api/pricing" && method === "GET") {
     return json({
@@ -294,6 +358,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     const user = existing ?? (await createUser(env, email));
     await setPassword(env, user.id, password);
     await ensureLicense(env, user.id);
+    if (!existing) await recordSignupSource(env, user.id, body.source).catch((e) => console.error("signup source", e));
     return signedIn(env, user, existing ? 200 : 201);
   }
 
@@ -615,7 +680,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     // Everything else is a static page, served before the Worker ever runs.
-    if (!url.pathname.startsWith("/api/") && !url.pathname.startsWith("/download/")) {
+    if (!url.pathname.startsWith("/api/") && !url.pathname.startsWith("/download/") && !url.pathname.startsWith("/media/")) {
       return new Response("Not found", { status: 404 });
     }
     if (request.method === "OPTIONS") {

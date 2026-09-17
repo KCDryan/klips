@@ -805,7 +805,22 @@ async function probeEngine() {
   return null;
 }
 
+/** Browsers call every Mac "Intel"; the graphics chip tells Apple Silicon apart. Unsure means Apple Silicon. */
+function macIsIntel() {
+  try {
+    const gl = document.createElement("canvas").getContext("webgl");
+    const info = gl && gl.getExtension("WEBGL_debug_renderer_info");
+    const renderer = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : "";
+    if (/Apple [AM]\d/i.test(renderer)) return false;
+    return /Intel|AMD|Radeon|NVIDIA/i.test(renderer);
+  } catch {
+    return false;
+  }
+}
+
 async function localAccessBlocked() {
+  // Only a public site can be blocked from reaching this computer; local development never is.
+  if (["localhost", "127.0.0.1"].includes(location.hostname)) return false;
   for (const name of ["local-network-access", "loopback-network"]) {
     try {
       const status = await navigator.permissions.query({ name });
@@ -840,6 +855,18 @@ async function showEngineMissing(stopped) {
   primary.textContent = windows ? "Download for Windows" : "Download for Mac";
   secondary.href = windows ? "/download/mac" : "/download/windows";
   secondary.textContent = windows ? "Download for Mac" : "Download for Windows";
+  const intel = !windows && macIsIntel();
+  if (intel) {
+    primary.href = "/download/mac-intel";
+    primary.textContent = "Download for Intel Mac";
+  }
+  const intelLink = $("#engine-download-intel");
+  intelLink.hidden = windows;
+  intelLink.href = intel ? "/download/mac" : "/download/mac-intel";
+  intelLink.textContent = intel ? "Mac with Apple M chip?" : "Older Intel Mac?";
+  $("#engine-install-hint").textContent = windows
+    ? "About 230 MB. Run the installer; if Windows says it protected your PC, click More info, then Run anyway."
+    : "About 230 MB. Drag Klips into Applications and open it. If macOS says it can't verify Klips, open System Settings → Privacy & Security and click Open Anyway.";
   const note = $("#engine-browser-note");
   if (await localAccessBlocked()) {
     note.textContent = "Your browser is blocking klips.pro from connecting to Klips Engine. Click the icon to the left of the web address, open Site settings, set Local network access to Allow, then reload this page.";
@@ -1017,6 +1044,9 @@ function setupClaude(initial) {
 // ---------- boot ----------
 
 (async function init() {
+  try {
+    navigator.sendBeacon("/api/t", new Blob([JSON.stringify({ path: "/studio/", referrer: document.referrer })], { type: "application/json" }));
+  } catch { /* analytics never blocks the studio */ }
   await refreshTokens();
   if (!ACCOUNT) return;
   const info = await connectEngine();

@@ -109,6 +109,13 @@ export function Privacy() {
         <li>Payment records from Stripe: amounts, dates and card brand. We never see your full card number.</li>
       </ul>
 
+      <h2>Visit counts</h2>
+      <p>
+        We count page visits by page, referring website, campaign tag and country, with no cookies, IP addresses or
+        visitor ids. Your browser also remembers which site first sent you here, and passes it along only when you
+        create an account, so we know which marketing works.
+      </p>
+
       <h2>What we never receive</h2>
       <ul>
         <li>Your video or audio files. Klips Studio sends them from your browser to Klips Engine on the same computer, never to our servers.</li>

@@ -6,6 +6,7 @@ import { Landing } from "./pages/Landing";
 import { Privacy, Terms } from "./pages/Legal";
 import { Start } from "./pages/Start";
 import { Welcome } from "./pages/Welcome";
+import { rememberFirstTouch, trackPageView } from "./lib/track";
 
 /** Minimal router: the Worker serves index.html for every page, so we read the path here. */
 export function navigate(path: string): void {
@@ -16,6 +17,14 @@ export function navigate(path: string): void {
 
 export function App() {
   const [path, setPath] = useState(window.location.pathname);
+
+  useEffect(() => {
+    rememberFirstTouch();
+  }, []);
+
+  useEffect(() => {
+    trackPageView(path);
+  }, [path]);
 
   useEffect(() => {
     const onChange = () => setPath(window.location.pathname);

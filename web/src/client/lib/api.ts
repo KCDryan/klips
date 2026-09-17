@@ -1,5 +1,8 @@
 /** Tiny API client for the Klips Worker. The browser's session cookie is sent automatically. */
 
+import { firstTouch } from "./track";
+
+
 export class ApiError extends Error {
   status: number;
   data: Record<string, unknown>;
@@ -89,7 +92,7 @@ export interface Me extends Partial<FreeAllowance> {
 export const api = {
   me: () => request<Me>("/api/auth/me"),
   signUp: (email: string, password: string, licenseKey?: string) =>
-    post<Me>("/api/auth/signup", { email, password, license_key: licenseKey || undefined }),
+    post<Me>("/api/auth/signup", { email, password, license_key: licenseKey || undefined, source: firstTouch() }),
   signIn: (email: string, password: string) => post<Me>("/api/auth/login", { email, password }),
   signOut: () => post<{ ok: true }>("/api/auth/logout"),
   forgotPassword: (email: string) => post<{ ok: true }>("/api/auth/forgot", { email }),
@@ -101,6 +104,7 @@ export const api = {
   onboarding: () => request<Onboarding>("/api/onboarding"),
   engineLink: () => post<{ app_key: string; email: string }>("/api/engine/link"),
   startFree: () => post<{ ok: true }>("/api/onboarding/free"),
+  demo: () => request<{ video: boolean; poster: boolean }>("/api/demo"),
   billingPortal: () => post<{ url: string }>("/api/account/portal"),
 
   buyTokens: (tokens: number) => post<{ url: string }>("/api/checkout/pack", { tokens }),
