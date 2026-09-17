@@ -31,7 +31,7 @@ export function Start() {
             </a>
           </div>
         </div>
-        <h1 className="mt-12 text-4xl font-extrabold tracking-tight">Get started with Klips</h1>
+        <h1 className="mt-12 text-4xl font-extrabold tracking-tight">Get started with Kirby's Klips</h1>
         <p className="mt-3 text-ink-300">
           A few one-time steps. Each one ticks itself off when it's done, and the next one opens.
         </p>

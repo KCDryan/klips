@@ -1,6 +1,6 @@
-# Klips
+# Kirby's Klips
 
-Turn long videos into ready-to-post vertical clips. Customers use Klips Studio in their browser at
+By Kirby Chan (Kirby Chan Digital). Turn long videos into ready-to-post vertical clips. Customers use Klips Studio in their browser at
 klips.pro/studio; Klips Engine, a background service on their own computer, does all the video work with
 their own Claude Code subscription. The website sells tokens, runs accounts and keeps each customer's history.
 

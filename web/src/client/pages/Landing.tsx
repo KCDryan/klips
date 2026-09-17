@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { BRAND, COMPANY, FOUNDER, PATREON_URL } from "../../shared/brand";
 import { FREE_CLIPS_PER_DAY, TOKENS_PER_CLIP } from "../../shared/pricing";
 import { PlanCards, TokenSlider } from "../components/Pricing";
 import { AccountButtons, Link, Logo } from "../components/SiteHeader";
@@ -53,7 +54,7 @@ const FEATURES = [
 
 const FAQ = [
   {
-    q: "What do I need to run Klips?",
+    q: `What do I need to run ${BRAND}?`,
     a: "Chrome or Edge on a Mac or Windows computer, plus a Claude Pro or Max subscription. You use Klips in your browser; the video work runs on your own computer, so nothing uploads to the cloud and there are no cloud processing fees.",
   },
   {
@@ -85,7 +86,7 @@ const FAQ = [
     a: "Yes, from your account page, and you keep any tokens you've already been given. Yearly plans are paid upfront for 12 months.",
   },
   {
-    q: "Can I use Klips on more than one computer?",
+    q: `Can I use ${BRAND} on more than one computer?`,
     a: "Yes. Install Klips Engine on each computer and open klips.pro/studio there. Your tokens and history follow your account.",
   },
 ];
@@ -103,7 +104,7 @@ function Demo() {
     <section id="demo" className="mx-auto max-w-6xl px-5 py-20">
       <div className="grid items-center gap-12 md:grid-cols-2">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">A real clip, made by Klips</h2>
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">A real clip, made by {BRAND}</h2>
           <p className="mt-3 max-w-lg text-ink-300">
             Straight out of Klips from a long recording, with no manual editing. Claude picked the moment and wrote the
             hook, the frame follows the speaker, and the captions highlight each word as it's said.
@@ -183,7 +184,7 @@ export function Landing() {
           <div className="rise">
             <span className="inline-flex items-center gap-2 rounded-full border border-ink-700 bg-ink-900 px-3 py-1 text-xs font-semibold text-ink-300">
               <span className="h-2 w-2 rounded-full bg-brand-500" />
-              Runs in your browser · powered by your computer and your own Claude Code
+              By {FOUNDER} · runs in your browser, powered by your own computer
             </span>
             <h1 className="mt-6 text-5xl font-extrabold leading-[1.05] tracking-tight md:text-6xl">
               One long video.
@@ -191,7 +192,7 @@ export function Landing() {
               A week of shorts.
             </h1>
             <p className="mt-6 max-w-lg text-lg text-ink-300">
-              Klips turns podcasts, interviews and Zoom calls into vertical clips that are captioned, reframed and
+              {BRAND} turns podcasts, interviews and Zoom calls into vertical clips that are captioned, reframed and
               ready to post. You work in your browser; your own computer does the heavy lifting, not a rented cloud queue.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
@@ -267,6 +268,31 @@ export function Landing() {
         </div>
       </section>
 
+      <section id="kirby" className="border-y border-ink-800 bg-ink-900/40">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-20 md:grid-cols-[auto_1fr]">
+          <div className="grid h-40 w-40 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-accent-500 text-5xl font-black text-ink-950 shadow-2xl shadow-black/50">
+            KC
+          </div>
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-brand-500">Made by {FOUNDER}</p>
+            <h2 className="mt-2 text-3xl font-bold tracking-tight md:text-4xl">Built for the videos Kirby actually makes</h2>
+            <p className="mt-4 max-w-2xl text-ink-300">
+              {BRAND} started as the tool {FOUNDER} uses to turn long Zoom calls and recordings into shorts, with the
+              screen shares, webcam layouts and posting copy handled. Now it's yours too: the same clips, made on your
+              own computer, with {FREE_CLIPS_PER_DAY} free every day.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link to="/signup" className="btn btn-primary">
+                Start free
+              </Link>
+              <a href={PATREON_URL} target="_blank" rel="noopener" className="btn btn-ghost">
+                Follow Kirby on Patreon
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="faq" className="mx-auto max-w-3xl px-5 py-20">
         <h2 className="text-3xl font-bold tracking-tight md:text-4xl">Questions</h2>
         <div className="mt-8 space-y-3">
@@ -286,7 +312,9 @@ export function Landing() {
       <footer className="border-t border-ink-800">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-10 text-sm text-ink-500">
           <Logo />
-          <p>© {new Date().getFullYear()} Klips · klips.pro</p>
+          <p>
+            © {new Date().getFullYear()} {BRAND} by {COMPANY} · klips.pro
+          </p>
           <div className="flex flex-wrap gap-5">
             <Link to="/account" className="hover:text-ink-100">
               Your account

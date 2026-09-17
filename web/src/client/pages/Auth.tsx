@@ -8,7 +8,7 @@ export type AuthMode = "login" | "signup" | "forgot" | "reset";
 
 const TITLES: Record<AuthMode, { title: string; blurb: string }> = {
   login: { title: "Welcome back", blurb: "Sign in to see your tokens, clips and billing." },
-  signup: { title: "Create your account", blurb: "One account for klips.pro and the Klips app." },
+  signup: { title: "Create your account", blurb: "Start free with 10 clips a day. No card needed." },
   forgot: { title: "Reset your password", blurb: "We'll email you a link to choose a new one." },
   reset: { title: "Choose a new password", blurb: "You'll be signed in straight after." },
 };
@@ -61,7 +61,7 @@ export function Auth({ mode }: { mode: AuthMode }) {
         await continueAfterAuth("/start");
       } else if (mode === "forgot") {
         await api.forgotPassword(email);
-        setNotice(`If ${email} has a Klips account, a reset link is on its way. Check your inbox and spam folder.`);
+        setNotice(`If ${email} has a Kirby's Klips account, a reset link is on its way. Check your inbox and spam folder.`);
       } else {
         await api.resetPassword(token, password);
         await continueAfterAuth("/account");
@@ -206,7 +206,7 @@ export function Auth({ mode }: { mode: AuthMode }) {
           <div className="mt-6 border-t border-ink-800 pt-5 text-center text-sm text-ink-500">
             {mode === "login" ? (
               <>
-                New to Klips?{" "}
+                New to Kirby's Klips?{" "}
                 <Link to={`/signup${window.location.search}`} className="font-semibold text-brand-500 hover:underline">
                   Create an account
                 </Link>

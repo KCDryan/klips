@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 
 import { navigate } from "../App";
+import { BRAND } from "../../shared/brand";
 import { type Me, api } from "../lib/api";
 
-/** The Klips mark. A real link, so it gets the pointer, middle-click and "open in new tab". */
+/** The Kirby's Klips mark. A real link, so it gets the pointer, middle-click and "open in new tab". */
 export function Logo({ className = "text-lg" }: { className?: string }) {
   return (
     <a
@@ -14,10 +15,10 @@ export function Logo({ className = "text-lg" }: { className?: string }) {
         navigate("/");
       }}
       className={`flex items-center gap-2 font-extrabold ${className}`}
-      aria-label="Klips home"
+      aria-label={`${BRAND} home`}
     >
       <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-500 text-ink-950">K</span>
-      Klips
+      {BRAND}
     </a>
   );
 }

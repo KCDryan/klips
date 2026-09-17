@@ -18,6 +18,7 @@ import {
   planTokens,
   tokensForClips,
 } from "../shared/pricing";
+import { BRAND } from "../shared/brand";
 import { recordPageView, recordSignupSource, stats } from "./analytics";
 import {
   consumeResetToken,
@@ -407,8 +408,8 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
       await sendEmail(
         env,
         user.email,
-        "Reset your Klips password",
-        `Someone asked to reset the password for your Klips account.\n\n` +
+        `Reset your ${BRAND} password`,
+        `Someone asked to reset the password for your ${BRAND} account.\n\n` +
           `Choose a new password here (the link works once, for one hour):\n${env.SITE_URL}/reset?token=${token}\n\n` +
           `If this wasn't you, ignore this email. Your password hasn't changed.`,
       );

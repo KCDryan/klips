@@ -2,7 +2,7 @@
 ; Built by .github/workflows/build-app.yml from the PyInstaller output in app\dist\Klips.
 ; The engine has no window: it runs in the background, starts at sign-in, and klips.pro/studio drives it.
 
-#define AppName "Klips"
+#define AppName "Kirby's Klips"
 #ifndef AppVersion
   #define AppVersion "1.0.0"
 #endif
@@ -14,7 +14,8 @@ AppVersion={#AppVersion}
 AppPublisher=Kirby Chan Digital
 AppPublisherURL=https://klips.pro
 AppSupportURL=https://klips.pro
-DefaultDirName={autopf}\{#AppName}
+; The folder keeps its original name so updates install over earlier versions.
+DefaultDirName={autopf}\Klips
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=..\dist
@@ -37,6 +38,11 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Files]
 Source: "..\dist\Klips\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[InstallDelete]
+; Shortcuts from versions named just "Klips"
+Type: filesandordirs; Name: "{autoprograms}\Klips"
+Type: files; Name: "{autodesktop}\Klips.lnk"
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\Klips.exe"

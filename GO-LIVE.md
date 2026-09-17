@@ -1,7 +1,11 @@
-# Going live with Klips
+# Going live with Kirby's Klips
 
 Everything that needs your accounts, in order. Never paste keys or passwords into a chat. Each step says where
 they go.
+
+**What it costs to run: $0 a month.** Cloudflare (website, database, downloads), Resend (emails) and GitHub
+(builds) all have free tiers that cover launch. Stripe charges only a fee per sale. The domain is already paid.
+Step 4 is the only paid item, and it's optional.
 
 ## 1. Test the whole thing on a second computer (15 minutes)
 
@@ -43,9 +47,13 @@ If any step doesn't complete, note which one and what the screen says.
    ```
 4. Test it at https://klips.pro/forgot. Emails come from `accounts@klips.pro`, and replies go to kcd.ryanc@gmail.com.
 
-## 4. Remove the "unverified developer" warnings (code signing)
+## 4. Optional, later: remove the "unverified developer" warnings (code signing, paid)
 
-The build signs the installers automatically once these GitHub secrets exist. Add each secret from Terminal; the
+Skip this until sales justify it. Without it, Mac and Windows show a one-time warning when the engine is first
+opened, and the setup checklist shows customers exactly which buttons to click. There's no free code-signing
+option for a commercial app on either platform.
+
+When you're ready, the build signs the installers automatically once these GitHub secrets exist. Add each secret from Terminal; the
 command asks for the value, so it never lands in your shell history:
 
 ```bash
@@ -86,13 +94,13 @@ since customers won't see the warnings any more.
 Anthropic's Claude Code terms say to contact sales if you're unsure whether your use is permitted. Send this from
 https://www.anthropic.com/contact-sales:
 
-> Hi, I run Klips (https://klips.pro), a tool that turns long videos into short clips. Customers install our engine
+> Hi, I run Kirby's Klips (https://klips.pro), a tool that turns long videos into short clips. Customers install our engine
 > on their own computer. It calls the unmodified Claude Code CLI (`claude -p`) that the customer installed and signed
 > into themselves with their own Pro or Max plan, to pick moments and write titles for their own videos. We never
 > see, store or route their Claude credentials, and we don't charge for Claude usage: our tokens pay for our
 > rendering software. We'd also offer customers the option to use their own Anthropic API key. Is this use
 > permitted under your terms, and is there anything we should change in how we describe it? We say "connects to
-> your own Claude Code" in plain text and don't use your logos. Thanks, Ryan Chan
+> your own Claude Code" in plain text and don't use your logos. Thanks, [your name], Kirby Chan Digital
 
 ## 6. Add a demo clip to the landing page
 
@@ -103,7 +111,7 @@ poster:
 cd ~/klips && ~/ai-clipper/.venv/bin/python scripts/upload_installer.py ~/Downloads/demo.mp4 ~/Downloads/demo-poster.jpg
 ```
 
-The files must be named `demo.mp4` and `demo-poster.jpg`. The "A real clip, made by Klips" section appears on the
+The files must be named `demo.mp4` and `demo-poster.jpg`. The "A real clip, made by Kirby's Klips" section appears on the
 landing page as soon as `demo.mp4` exists.
 
 ## Watching how it goes

@@ -11,6 +11,7 @@ import {
   planCents,
   planTokens,
 } from "../shared/pricing";
+import { BRAND } from "../shared/brand";
 import { type Env, type User, creditTokens, ensureUser, getUserById, getUserByStripeCustomer, id, linkStripeCustomer, now } from "./db";
 
 /**
@@ -59,7 +60,7 @@ export async function createPackCheckout(env: Env, tokens: number, user: User): 
           unit_amount: packCents(amount),
           product_data: {
             tax_code: TAX_CODE,
-            name: `${amount} Klips tokens`,
+            name: `${amount} ${BRAND} tokens`,
             description: `${amount / 3 | 0} clips. Tokens never expire.`,
           },
         },
@@ -91,7 +92,7 @@ export async function createSubscriptionCheckout(env: Env, plan: Plan, interval:
           recurring: { interval },
           product_data: {
             tax_code: TAX_CODE,
-            name: `Klips ${plan.name} (${interval === "year" ? "yearly" : "monthly"})`,
+            name: `${BRAND} ${plan.name} (${interval === "year" ? "yearly" : "monthly"})`,
             description:
               interval === "year"
                 ? `${plan.tokensPerMonth} tokens a month, ${tokens} granted upfront for the year.`

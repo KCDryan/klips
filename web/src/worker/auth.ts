@@ -4,6 +4,7 @@
  * Passwords are stored as salted PBKDF2-SHA256 hashes. A signed-in browser holds a random session
  * token in an HttpOnly cookie; the database only keeps its SHA-256, so a leaked table can't sign anyone in.
  */
+import { BRAND } from "../shared/brand";
 import { type Env, type User, getUserById, now, sha256 } from "./db";
 
 /** Where customer emails and replies go. */
@@ -171,7 +172,7 @@ export async function sendEmail(env: Env, to: string, subject: string, text: str
     method: "POST",
     headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
     // Sent from the klips.pro domain (no inbox needed); replies go to the Klips support inbox.
-    body: JSON.stringify({ from: env.EMAIL_FROM || "Klips <accounts@klips.pro>", reply_to: SUPPORT_EMAIL, to: [to], subject, text }),
+    body: JSON.stringify({ from: env.EMAIL_FROM || `${BRAND} <accounts@klips.pro>`, reply_to: SUPPORT_EMAIL, to: [to], subject, text }),
   });
   if (!response.ok) {
     console.error("email send failed", response.status, await response.text());

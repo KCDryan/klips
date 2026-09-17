@@ -29,7 +29,7 @@ export function Terms() {
   return (
     <Page title="Terms of service">
       <p>
-        Klips is software you run on your own computer, sold by Kirby Chan Digital. Buying tokens or a plan means you
+        Kirby's Klips ("Klips") is software you run on your own computer, made and sold by Kirby Chan Digital. Creating an account, making clips or buying tokens means you
         agree to these terms. If anything here doesn't work for you, email kcd.ryanc@gmail.com before you buy.
       </p>
 
