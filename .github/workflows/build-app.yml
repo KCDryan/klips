@@ -1,8 +1,8 @@
 name: Build Klips installers
 
-# Every push to main that touches the engine builds and self-tests the installers.
-# Pushing a version tag (v1.4.1, ...) also publishes them as a GitHub release; scripts/sync.sh then copies
-# them to klips.pro/download.
+# Pushing a version tag (v1.4.2, ...) builds, self-tests and publishes the installers as a GitHub release;
+# scripts/sync.sh then copies them to klips.pro/download. Only tags build, not every push: macOS minutes count
+# ten times against the free GitHub allowance for private repositories.
 #
 # Code signing switches on by itself once these repository secrets exist (Settings -> Secrets -> Actions):
 #   Mac:     APPLE_CERTIFICATE_P12 (base64 of the Developer ID Application .p12), APPLE_CERTIFICATE_PASSWORD,
@@ -12,10 +12,6 @@ name: Build Klips installers
 # Without them the Mac app is ad-hoc signed and the Windows installer is unsigned, as before.
 on:
   push:
-    branches: [main]
-    paths:
-      - "app/**"
-      - ".github/workflows/build-app.yml"
     tags: ["v*"]
   workflow_dispatch:
 

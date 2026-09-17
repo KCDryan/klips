@@ -1,13 +1,9 @@
 name: Deploy klips.pro
 
-# Every push to main that touches the website: check it, then ship it to Cloudflare.
-# Until Cloudflare is set up (SETUP.md steps 2-5) the checks still run and the deploy is skipped.
+# Manual only (Actions tab -> Run workflow). scripts/sync.sh already checks and deploys the website from this Mac,
+# and running on every push used up the free GitHub Actions minutes.
+# Deploys only when CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets exist.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "web/**"
-      - ".github/workflows/deploy-web.yml"
   workflow_dispatch:
 
 jobs:

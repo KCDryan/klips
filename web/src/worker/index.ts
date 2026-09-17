@@ -170,6 +170,14 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
     return json(await stats(env, days));
   }
 
+  /** What's already in R2 for a file, so the upload script can skip files that are already there. */
+  if (path === "/api/admin/object" && method === "GET") {
+    const key = url.searchParams.get("key") || "";
+    if (!Object.hasOwn(UPLOAD_TYPES, key)) return fail("Unknown file name.");
+    const object = await env.DOWNLOADS.head(key);
+    return json(object ? { exists: true, size: object.size, version: object.customMetadata?.version ?? null } : { exists: false });
+  }
+
   // Uploads to R2, in parts (a single request is capped at 100 MB).
   if (path.startsWith("/api/admin/upload/")) {
     const key = url.searchParams.get("key") || "";
